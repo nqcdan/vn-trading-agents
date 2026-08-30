@@ -24,8 +24,26 @@ VN_MARKET_RULES = textwrap.dedent(
 
 import shutil
 import subprocess
+import time
 
 _DEFAULT_SYS = "Bạn là chuyên gia phân tích chứng khoán VN. Trả lời tiếng Việt, ngắn gọn."
+
+# Đo chi phí LLM cho backend subscription: số lần spawn `claude` + tổng wall-time.
+_COST = {"spawns": 0, "wall_s": 0.0}
+
+
+def cost_reset() -> None:
+    _COST["spawns"] = 0
+    _COST["wall_s"] = 0.0
+
+
+def cost_snapshot() -> dict:
+    return dict(_COST)
+
+
+def _cost_add(wall_s: float) -> None:
+    _COST["spawns"] += 1
+    _COST["wall_s"] += wall_s
 
 
 def _backend() -> str:
@@ -55,11 +73,14 @@ def _llm_via_cli(prompt: str, system: str, timeout: int = 90) -> str:
     cmd = ["claude", "-p", prompt, "--model", model,
            "--append-system-prompt", (system or _DEFAULT_SYS) + _CLI_SYS_GUARD,
            "--strict-mcp-config", "--disallowed-tools", *_NO_TOOLS]
+    t0 = time.monotonic()
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                            cwd="/tmp")  # /tmp: tránh nạp CLAUDE.md/MCP của project
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(f"claude cli timeout {timeout}s") from e
+    finally:
+        _cost_add(time.monotonic() - t0)  # đếm cả timeout (thời gian phí)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or "claude cli failed")[:200])
     return r.stdout.strip()

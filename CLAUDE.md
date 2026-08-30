@@ -20,6 +20,9 @@ VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 .venv/bin/python run.py advise --holdings "FPT:75,MBB:12" --group VN30     # kế hoạch tháng theo PROFILE.md
 .venv/bin/python run.py watch --group VN30            # máy quét EOD: im lặng khi không có việc, đề xuất khi cần
 .venv/bin/python run.py tcbs FPT                     # phân tích qua TCBS MCP (real-time, tín hiệu giàu)
+.venv/bin/python run.py paper init                   # sổ paper-trade forward từ portfolio thật
+.venv/bin/python run.py paper advise --group VN30    # agent trần auto-apply lệnh vào sổ + đo cost
+.venv/bin/python run.py paper score                  # scorecard 3 đường (agent/giữ nguyên/VNINDEX)
 .venv/bin/python run.py serve --port 8787            # HTTP API đọc chỉ số hiện tại
 ```
 
@@ -56,9 +59,12 @@ Package độc lập nằm ở `vn/` (chạy ngay, không phụ thuộc thư m�
 - **`vn/cache.py`** — `memoize(namespace, key, producer, as_of)` cache JSON **theo ngày** ở `.cache/<YYYY-MM-DD>/…` để giảm rate-limit vnstock; `VN_NO_CACHE=1` để bust.
 - **`vn/journal.py`** — `record(cmd, payload, summary_md="")` ghi audit trail mỗi run `advise`/`recommend`/`watch` vào `reports/journal/` (JSON + `.md` tuỳ chọn). Lỗi IO bị nuốt, không làm hỏng lệnh chính.
 - **`vn/recommend.py`** — rank (danh mục ∪ rổ) 2 tầng: sàng rule-based nhanh (`_screen_one`, có P/B penalty) → LLM-verify top BUY (`analyze()`); `_action()` map tín hiệu → khuyến nghị theo bối cảnh danh mục (concentration cap 25% NAV).
+- **`vn/paper.py`** — sổ paper-trade **forward-only** ở `reports/paper/portfolio.json`. `init` seed từ portfolio thật + ví bank, `inject_cash`, `apply(acts)` khớp lệnh theo `vn_market` (lô 100, phí/thuế, giảm lô khi thiếu tiền → warnings), `mark` định giá NAV+P&L, `score` scorecard 3 đường (agent vs snapshot giữ-nguyên vs VNINDEX) + phí/turnover. `PaperError` khi sổ đã tồn tại / chưa init.
+- **`vn/actions.py`** — `parse_actions(text)` bóc block JSON `{action,symbol,lots,price,reason}` cuối trong plan/proposal của `advise`/`watch` (2 hàm này giờ trả thêm field `actions`) → cho `paper.apply` auto-apply agent trần.
+- **`vn/agents.py` cost log** — `cost_reset()`/`cost_snapshot()->{spawns,wall_s}` đo chi phí LLM subscription 1 lượt (số lần spawn `claude` + wall-time). CLI bọc quanh `advise`/`watch`/`recommend`/`paper *` → in dòng `[LLM: N spawn, Xs]` + nhét `cost` vào `journal.record`.
 - **`vn/portfolio.py`** — đọc portfolio thật từ dự án `everyday` (`GET /api/wallet/holdings?class=vn_stock`, Bearer `ADMIN_TOKEN`) rồi phân tích từng vị thế + P&L danh mục. Env: `EVERYDAY_API_BASE`, `EVERYDAY_ADMIN_TOKEN` (KHÔNG hardcode token). Portfolio nhạy cảm → endpoint everyday giữ auth, không public.
 - **`vn/vn_api.py`** — HTTP API stdlib (`http.server`, không thêm dependency). Endpoint: `/health`, `/analyze/{SYM}`, `/indicators/{SYM}`, `/sentiment/{SYM}`, `/macro`, `/screen?group=VN30&throttle=2.2&haircut=0.3&no_macro=0`. Trả JSON; bind `127.0.0.1` mặc định (local-only). Bắt `BaseException` để nuốt `SystemExit` rate-limit của vnstock.
-- **`run.py`** — CLI argparse, 9 subcommand `analyze|backtest|screen|recommend|advise|watch|tcbs|serve|portfolio`.
+- **`run.py`** — CLI argparse, 10 subcommand `analyze|backtest|screen|recommend|advise|watch|paper|tcbs|serve|portfolio`. `paper` có nested sub-action `init|cash|mark|score|advise|watch`.
 
 ### Bất biến quan trọng khi sửa code
 
@@ -66,5 +72,6 @@ Package độc lập nằm ở `vn/` (chạy ngay, không phụ thuộc thư m�
 - **Macro trong backtest ≠ macro trong live.** voz RSS chỉ có ~20 tin gần nhất, không tái dựng được lịch sử → backtest thay bằng proxy regime `risk_off = VNINDEX < SMA50`, cắt size lệnh MUA theo `--haircut` (mặc định 0.30). Live `analyze` vẫn dùng voz thật.
 - **Đọc backtest luôn so `buy_hold_return_pct`** (cột `alpha` = return − buy&hold). Thua buy&hold = phí + whipsaw ăn mòn alpha.
 - Mọi agent phải giữ nhánh rule-based fallback để chạy được khi không có LLM.
+- **`paper` = forward-only, KHÔNG backtest LLM lịch sử** — chạy lại quá khứ là hindsight (LLM "biết" tương lai) + không có TCBS/voz lịch sử = gian lận. Chỉ tiến về phía trước. 2–3 tháng KHÔNG đủ kết luận alpha; chỉ đo thất bại thô + chi phí + độ ổn định.
 
 Note: `AGENTS.md` ở root là bootstrap tự sinh của vnstock (gitignored), không liên quan kiến trúc dự án này.

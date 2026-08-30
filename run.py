@@ -10,7 +10,7 @@ import argparse
 import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
-                tcbs as tcbs_mcp, watch as watch_mod, journal)
+                tcbs as tcbs_mcp, watch as watch_mod, journal, paper)
 
 
 def _print(obj):
@@ -103,8 +103,10 @@ def _fmt(v, w=6, d=1, suf=""):
 
 
 def cmd_recommend(a):
+    agents.cost_reset()
     res = rec.recommend(a.group, holdings_csv=a.holdings, asset_class=a.asset_class,
                         llm_top=0 if a.no_llm else a.llm_top, throttle=a.throttle)
+    snap = agents.cost_snapshot()
     m = res["macro"]
     print(f"\n=== Khuyến nghị {res['group']} + danh mục | {res['n']} mã "
           f"| vĩ mô voz: {m['signal']} (net {m['net']}) ===")
@@ -131,7 +133,8 @@ def cmd_recommend(a):
     print("\n◆ = mã đang giữ. BUY-WAIT = tín hiệu mua nhưng RSI≥70 (chờ hạ nhiệt).")
     print("LLM cột cuối = phán quyết sâu (thắng rule-based khi lệch, vd định giá đắt).")
     print("Công cụ giáo dục — KHÔNG phải khuyến nghị đầu tư.")
-    journal.record("recommend", res)
+    print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+    journal.record("recommend", {**res, "cost": snap})
     if a.json:
         _print(res)
 
@@ -139,10 +142,12 @@ def cmd_recommend(a):
 def cmd_advise(a):
     extra = [s for s in (a.extra or "").split(",") if s.strip()]
     cash_wallet = tuple(s.strip() for s in a.cash_wallet.split(",")) if a.cash_wallet else None
+    agents.cost_reset()
     res = adv.advise(a.group, holdings_csv=a.holdings, asset_class=a.asset_class,
                      cash=a.cash, throttle=a.throttle, llm_top=a.llm_top,
                      use_mcp=not a.no_mcp, extra=extra, cash_wallet=cash_wallet,
                      require_mcp=a.require_mcp)
+    snap = agents.cost_snapshot()
     if "error" in res:
         print(f"Lỗi: {res['error']}")
         return
@@ -160,7 +165,8 @@ def cmd_advise(a):
     if res.get("errors"):
         print(f"\n(rate-limit bỏ qua: {', '.join(e.split(':')[0] for e in res['errors'])})")
     print("\n— Phân tích tham khảo theo PROFILE.md, KHÔNG phải khuyến nghị đầu tư.")
-    journal.record("advise", res, summary_md=res.get("plan", ""))
+    print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+    journal.record("advise", {**res, "cost": snap}, summary_md=res.get("plan", ""))
     if a.json:
         _print(res)
 
@@ -180,15 +186,18 @@ def cmd_tcbs(a):
 
 def cmd_watch(a):
     extra = [s for s in (a.extra or "").split(",") if s.strip()]
+    agents.cost_reset()
     res = watch_mod.watch(asset_class=a.asset_class, holdings_csv=a.holdings,
                           require_mcp=a.require_mcp, throttle=a.throttle,
                           extra=extra, group=a.group)
+    snap = agents.cost_snapshot()
     if "error" in res:
         print(f"Lỗi: {res['error']}")
         return
     if res.get("silent"):
         print("✓ Không có tín hiệu hành động hôm nay (danh mục ổn, không có tiền rảnh đáng kể).")
-        journal.record("watch", res)
+        print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+        journal.record("watch", {**res, "cost": snap})
         return
     print(f"\n=== Watch EOD | rổ {res.get('group')} | nguồn: {res.get('mode')} ===")
     for t in res.get("triggers", []):
@@ -201,9 +210,95 @@ def cmd_watch(a):
     if str(res.get("mode", "")).startswith("fallback"):
         print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
         print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
-    journal.record("watch", res, summary_md=res.get("proposal") or "")
+    print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+    journal.record("watch", {**res, "cost": snap}, summary_md=res.get("proposal") or "")
     if a.json:
         _print(res)
+
+
+def _print_mark(m):
+    print(f"NAV: {m['nav']:,.0f}đ  (tiền mặt {m['cash']:,.0f}đ + cổ phiếu {m['market_value']:,.0f}đ)")
+    if m["positions"]:
+        print(f"{'MÃ':6} {'SL':>7} {'giá vốn':>10} {'giá':>10} {'thị giá':>14} {'lãi/lỗ':>14}")
+        for p in m["positions"]:
+            print(f"{p['symbol']:6} {p['qty']:>7} {p['avg_cost']:>10,.0f} {p['price']:>10,.0f} "
+                  f"{p['market_value']:>14,.0f} {p['unrealized_pnl']:>+14,.0f}")
+    for n in m.get("notes", []):
+        print(f"  · {n}")
+
+
+def _paper_agent(a, kind):
+    agents.cost_reset()
+    if kind == "advise":
+        extra = [s for s in (a.extra or "").split(",") if s.strip()]
+        res = adv.advise(a.group, holdings_csv=a.holdings, asset_class=a.asset_class,
+                         use_mcp=not a.no_mcp, extra=extra)
+        text = res.get("plan") or ""
+    else:
+        extra = [s for s in (a.extra or "").split(",") if s.strip()]
+        res = watch_mod.watch(asset_class=a.asset_class, holdings_csv=a.holdings,
+                              extra=extra, group=a.group)
+        text = res.get("proposal") or ""
+    snap = agents.cost_snapshot()
+    if "error" in res:
+        print(f"Lỗi: {res['error']}")
+        return
+    acts = res.get("actions") or []
+    print(f"\n=== paper {kind} | nguồn: {res.get('mode')} ===\n")
+    if text:
+        print(text.strip())
+    if not acts:
+        print("\nagent không đề xuất hành động nào (giữ nguyên).")
+        print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+        journal.record(f"paper-{kind}", {**res, "cost": snap, "applied": []})
+        return
+    out = paper.apply(acts)
+    print("\n— Đã áp vào sổ paper:")
+    for act in acts:
+        print(f"  {act.get('action')} {act.get('symbol')} {act.get('lots')} lô @ {act.get('price'):,.0f}"
+              + (f"  ({act.get('reason')})" if act.get('reason') else ""))
+    for w in out.get("warnings", []):
+        print(f"  ⚠ {w}")
+    print()
+    _print_mark(paper.mark())
+    print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+    journal.record(f"paper-{kind}", {**res, "cost": snap, "applied": acts})
+
+
+def cmd_paper(a):
+    act = a.action
+    if act == "init":
+        try:
+            book = paper.init(a.asset_class, seed_cash=a.seed_cash)
+        except paper.PaperError as e:
+            print(f"Lỗi: {e}")
+            print("Xoá sổ cũ nếu muốn init lại: rm reports/paper/portfolio.json")
+            return
+        print(f"✓ Khởi tạo sổ paper ({a.asset_class}).")
+        print(f"Tiền mặt seed: {book['cash']:,.0f}đ | {len(book['positions'])} vị thế")
+        for s, v in book["positions"].items():
+            print(f"  {s}: {v['qty']} cp @ {v['avg_cost']:,.0f}")
+    elif act == "cash":
+        book = paper.inject_cash(a.amount)
+        print(f"✓ Nạp {a.amount:,.0f}đ. Tiền mặt mới: {book['cash']:,.0f}đ")
+    elif act == "mark":
+        _print_mark(paper.mark())
+    elif act == "score":
+        s = paper.score()
+        print("\n=== Scorecard paper (3 đường benchmark) ===")
+        print(f"{'Agent (đã giao dịch)':28} {s['agent_nav']:>16,.0f}đ")
+        print(f"{'Giữ nguyên (không đụng)':28} {s['hold_nav']:>16,.0f}đ")
+        vni = s.get("vnindex")
+        print(f"{'VNINDEX (điểm)':28} " + (f"{vni:>16,.0f}" if vni is not None else f"{'—':>16}"))
+        print(f"\nTiền mặt: {s['cash_now']:,.0f}đ | đã nạp thêm: {s['cash_injected']:,.0f}đ")
+        print(f"Tổng phí+thuế: {s['total_fees_tax']:,.0f}đ | số lệnh (turnover): {s['turnover_trades']}")
+        for n in s.get("notes", []):
+            print(f"  · {n}")
+        print("\nCaveat: 2–3 tháng KHÔNG đủ kết luận alpha — chỉ đo thất bại thô + chi phí + độ ổn định.")
+    elif act == "advise":
+        _paper_agent(a, "advise")
+    elif act == "watch":
+        _paper_agent(a, "watch")
 
 
 def main():
@@ -282,6 +377,24 @@ def main():
     pt.add_argument("symbol")
     pt.add_argument("--json", action="store_true")
     pt.set_defaults(func=cmd_tcbs)
+
+    ppa = sub.add_parser("paper", help="paper-trade forward: agent trần auto-apply + scorecard 3 đường")
+    psub = ppa.add_subparsers(dest="action", required=True)
+    pi = psub.add_parser("init", help="khởi tạo sổ từ portfolio everyday (seed cash + vị thế)")
+    pi.add_argument("--asset-class", default="vn_stock")
+    pi.add_argument("--seed-cash", type=float, default=None, help="tiền mặt seed (mặc định số dư ví bank)")
+    pc = psub.add_parser("cash", help="nạp thêm tiền mặt vào sổ")
+    pc.add_argument("amount", type=float)
+    psub.add_parser("mark", help="định giá sổ hiện tại: NAV + P&L từng vị thế")
+    psub.add_parser("score", help="scorecard: agent vs giữ nguyên vs VNINDEX + phí/turnover")
+    for name in ("advise", "watch"):
+        pag = psub.add_parser(name, help=f"agent {name} → auto-apply vào sổ paper + đo chi phí LLM")
+        pag.add_argument("--group", default="VN30")
+        pag.add_argument("--holdings", default=None)
+        pag.add_argument("--asset-class", default="vn_stock")
+        pag.add_argument("--extra", default=None, help="ép thêm mã vào shortlist, vd 'GMD,VNM'")
+        pag.add_argument("--no-mcp", action="store_true", help="tắt TCBS MCP, dùng text-mode")
+    ppa.set_defaults(func=cmd_paper)
 
     pv = sub.add_parser("serve", help="chạy HTTP API đọc chỉ số hiện tại")
     pv.add_argument("--host", default="127.0.0.1")

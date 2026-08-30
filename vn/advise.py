@@ -11,8 +11,19 @@ from __future__ import annotations
 from . import recommend as rec
 from . import tcbs as tcbs_mcp
 from . import portfolio as pf
+from . import actions
 from .agents import _llm, _llm_available, _DEFAULT_SYS
 from .profile import load_profile, profile_system
+
+_JSON_DIRECTIVE = (
+    "\n\nCUỐI CÙNG, sau phần trình bày, in DUY NHẤT MỘT khối ```json chứa list hành động "
+    "thực thi đúng kế hoạch trên:\n"
+    '[{"action":"BUY|SELL|HOLD","symbol":"MÃ","lots":<số lô 100cp>,'
+    '"price":<giá 1 cp theo ĐỒNG, vd 84200>,"reason":"ngắn"}].\n'
+    "Chỉ gồm mã CÓ hành động mua/bán thật (bỏ HOLD nếu không giao dịch). `lots`=số lô sẽ "
+    "khớp, `price`=giá/cp theo đồng (không phải nghìn). Khối JSON PHẢI khớp con số trong "
+    "bảng ở trên."
+)
 
 
 def _resolve_cash(cash: str | None, cash_wallet: tuple[str, ...] | None) -> tuple[str, dict | None]:
@@ -89,6 +100,7 @@ def _text_prompt(group, macro, lines, cash_txt) -> str:
         f"RÀNG BUỘC: ngân sách cứng {cash_txt}; mua theo LÔ 100 cp (giá×100=tiền/lô). "
         "Tính số lô mỗi mã, tổng ≤ ngân sách, in tiền mặt còn dư.\n"
         "Gọn, có số, tiếng Việt. Tham khảo, không phải khuyến nghị đầu tư."
+        + _JSON_DIRECTIVE
     )
 
 
@@ -120,6 +132,7 @@ def _mcp_prompt(group, macro, held, cands, ranking_lines, cash_txt) -> str:
         "Có dòng TỔNG + TIỀN DƯ. Nếu mã giá cao khiến 1 lô > phần ngân sách dự kiến → nói rõ "
         "và điều chỉnh (giảm số lô mã khác hoặc để dư tiền chờ tháng sau).\n\n"
         "Trình bày gọn, có số, ghi rõ 'nguồn TCBS'. Tham khảo, không phải khuyến nghị đầu tư."
+        + _JSON_DIRECTIVE
     )
 
 
@@ -169,6 +182,8 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
     else:
         plan, mode = _text_fallback("text")
 
+    plan = plan.strip()
     return {"group": group, "macro": macro, "mode": mode, "ranking_lines": lines,
             "cash_txt": cash_txt, "cash_info": cash_info,
-            "errors": r["errors"], "plan": plan.strip()}
+            "errors": r["errors"], "plan": plan,
+            "actions": actions.parse_actions(plan)}

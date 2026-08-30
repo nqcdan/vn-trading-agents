@@ -11,8 +11,9 @@ getHistoryRecommendation (đồng thuận CTCK + giá mục tiêu), getVolumeAnd
 from __future__ import annotations
 import os
 import subprocess
+import time
 
-from .agents import _DEFAULT_SYS, _NO_TOOLS
+from .agents import _DEFAULT_SYS, _NO_TOOLS, _cost_add
 from .profile import profile_system
 
 
@@ -34,10 +35,13 @@ def _llm_mcp(prompt: str, system: str = "", timeout: int = 240) -> str:
            "--append-system-prompt", system or _TCBS_SYS,
            "--allowedTools", "mcp__tcbs__*",
            "--disallowedTools", *_NO_TOOLS]
+    t0 = time.monotonic()
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd="/tmp")
     except subprocess.TimeoutExpired as e:
         raise TcbsError(f"timeout {timeout}s") from e
+    finally:
+        _cost_add(time.monotonic() - t0)  # đếm cả timeout
     if r.returncode != 0:
         raise TcbsError((r.stderr or "claude cli failed")[:200])
     out = r.stdout.strip()

@@ -25,7 +25,7 @@ vn-trading-agents/
 │   ├── portfolio.py     # đọc danh mục thật từ everyday API rồi phân tích từng vị thế
 │   └── vn_api.py        # HTTP API (stdlib http.server) đọc chỉ số hiện tại
 ├── PROFILE.md           # hồ sơ NĐT cá nhân hoá (LLM đọc để khuyến nghị hợp khẩu vị)
-├── run.py               # CLI: analyze | backtest | screen | recommend | advise | watch | portfolio | serve
+├── run.py               # CLI: analyze | backtest | screen | recommend | advise | watch | paper | portfolio | serve
 ├── requirements.txt
 └── TradingAgents/       # clone upstream (tham chiếu kiến trúc, gitignored)
 ```
@@ -190,6 +190,36 @@ churn** (chỉ xoay khi lợi thế vượt ~0.5% round-trip + bù T+2).
 
 Ngân sách mua = số dư ví bank realtime (không hardcode). Fallback text-mode cũng có banner
 cảnh báo như `advise`.
+
+### Paper-trade forward (`paper`)
+
+`paper` chạy **forward-only**: khởi tạo một sổ ảo từ portfolio thật (everyday), rồi để agent
+tự đề xuất **và tự áp** lệnh (agent trần, không lọc tay) vào sổ để đo xem quyết định LLM
+theo thời gian ra sao. Sổ ở `reports/paper/portfolio.json`. KHÔNG backtest LLM lịch sử — chỉ
+tiến về phía trước.
+
+```bash
+.venv/bin/python run.py paper init                       # seed sổ từ portfolio + số dư ví bank
+.venv/bin/python run.py paper init --seed-cash 100000000 # seed tiền mặt thủ công
+.venv/bin/python run.py paper cash 23000000              # nạp thêm tiền (DCA tháng)
+.venv/bin/python run.py paper advise --group VN30        # agent advise → auto-apply vào sổ
+.venv/bin/python run.py paper watch  --group VN30         # agent watch  → auto-apply vào sổ
+.venv/bin/python run.py paper mark                       # định giá: NAV + P&L từng vị thế
+.venv/bin/python run.py paper score                      # scorecard 3 đường benchmark
+```
+
+`paper advise`/`paper watch` in đề xuất, các lệnh đã áp (kèm cảnh báo thiếu tiền / cắt lô),
+NAV mới sau khi áp, và **chi phí LLM lượt đó** dạng `[LLM: N spawn, Xs]` (đo số lần spawn
+`claude` + wall-time — cùng dòng cost đã thêm vào `advise`/`watch`/`recommend`). Nếu agent
+không đề xuất gì → in "giữ nguyên", sổ không đổi.
+
+`paper score` là **scorecard 3 đường benchmark**: NAV của agent (đã giao dịch) vs *giữ nguyên*
+(snapshot lúc init, không đụng) vs *VNINDEX*; kèm tổng phí+thuế, turnover (số lệnh), tiền mặt
+hiện tại và tiền đã nạp thêm.
+
+**Caveat:** 2–3 tháng KHÔNG đủ kết luận alpha. Cửa sổ ngắn này chỉ đo được **thất bại thô**
+(agent thua giữ nguyên/VNINDEX rõ rệt), **chi phí** (phí+thuế+token) và **độ ổn định** hành
+vi — không phải bằng chứng thống kê về edge.
 
 ### Cache & journal
 

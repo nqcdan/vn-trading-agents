@@ -15,9 +15,20 @@ tránh gọi RSS cả rổ; có thể mở rộng quét news như một trigger 
 from __future__ import annotations
 
 from . import portfolio as pf, recommend as rec, vn_data, vn_news
+from . import actions
 from .agents import _llm, _llm_available, _DEFAULT_SYS
 from .profile import profile_system
 from . import tcbs
+
+_JSON_DIRECTIVE = (
+    "\n\nCUỐI CÙNG, sau phần trình bày, in DUY NHẤT MỘT khối ```json chứa list hành động "
+    "thực thi đúng kế hoạch trên:\n"
+    '[{"action":"BUY|SELL|HOLD","symbol":"MÃ","lots":<số lô 100cp>,'
+    '"price":<giá 1 cp theo ĐỒNG, vd 84200>,"reason":"ngắn"}].\n'
+    "Chỉ gồm mã CÓ hành động mua/bán thật (bỏ HOLD nếu không giao dịch). `lots`=số lô sẽ "
+    "khớp, `price`=giá/cp theo đồng (không phải nghìn). Khối JSON PHẢI khớp con số trong "
+    "bảng ở trên."
+)
 
 ROUND_TRIP_COST_PCT = 0.5  # phí+thuế+slippage vòng round-trip → ngưỡng guard rotate
 LOT = 100
@@ -174,6 +185,7 @@ def _prompt(triggers: list[dict], candidates: list[dict], budget: int | None,
            "tiền dư.\n" if has_cash_op else "")
         + "Đây KHÔNG phải auto-trade — chỉ là đề xuất để người dùng cân nhắc. Trình bày tiếng "
         "Việt, ngắn gọn, có số. Kết: 'tham khảo, không phải khuyến nghị đầu tư'."
+        + _JSON_DIRECTIVE
     )
 
 
@@ -204,7 +216,8 @@ def watch(asset_class: str = "vn_stock", holdings_csv: str | None = None,
 
     if not triggers and not has_cash_op:
         return {"silent": True, "triggers": [], "budget": budget,
-                "proposal": None, "note": budget_note or note, "group": group}
+                "proposal": None, "actions": [], "note": budget_note or note,
+                "group": group}
 
     result = {
         "silent": False, "triggers": triggers, "budget": budget,
@@ -218,6 +231,7 @@ def watch(asset_class: str = "vn_stock", holdings_csv: str | None = None,
             lines.append(f"Tiền rảnh {budget:,} VND — có ứng viên giải ngân: "
                          + ", ".join(c["symbol"] for c in candidates))
         result["proposal"] = None
+        result["actions"] = []
         result["mode"] = "rule-based"
         result["summary"] = "\n".join(lines) or "(chỉ có tiền rảnh, không mã bị trigger)"
         return result
@@ -237,4 +251,5 @@ def watch(asset_class: str = "vn_stock", holdings_csv: str | None = None,
         except BaseException as e2:
             result["proposal"] = None
             result["mode"] = f"llm-failed ({type(e2).__name__})"
+    result["actions"] = actions.parse_actions(result.get("proposal"))
     return result
