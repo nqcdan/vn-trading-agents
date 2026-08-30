@@ -25,7 +25,7 @@ vn-trading-agents/
 │   ├── portfolio.py     # đọc danh mục thật từ everyday API rồi phân tích từng vị thế
 │   └── vn_api.py        # HTTP API (stdlib http.server) đọc chỉ số hiện tại
 ├── PROFILE.md           # hồ sơ NĐT cá nhân hoá (LLM đọc để khuyến nghị hợp khẩu vị)
-├── run.py               # CLI: analyze | backtest | screen | recommend | advise | portfolio | serve
+├── run.py               # CLI: analyze | backtest | screen | recommend | advise | watch | portfolio | serve
 ├── requirements.txt
 └── TradingAgents/       # clone upstream (tham chiếu kiến trúc, gitignored)
 ```
@@ -60,6 +60,9 @@ không override biến shell đã có). Không cần export vào `~/.zshrc`.
 
 # Kế hoạch tháng theo PROFILE.md: rót tiền mới vào đâu + bán/rotate (1 lần LLM)
 .venv/bin/python run.py advise --holdings "FPT:75,MBB:12,HAH:8,HPG:4" --group VN30
+
+# Máy quét EOD: im lặng khi không có việc, chỉ báo khi cần rotate/giải ngân
+.venv/bin/python run.py watch --group VN30
 
 # Phân tích qua TCBS MCP: dữ liệu real-time + rating 7 chiều + đồng thuận CTCK + khối ngoại
 .venv/bin/python run.py tcbs FPT
@@ -152,20 +155,48 @@ lập kế hoạch. Tự fallback text-mode nếu TCBS chưa auth.
 ```bash
 .venv/bin/python run.py advise --holdings "FPT:75.3,MBB:12.3,HAH:8.2,HPG:4.2" --group VN30
 .venv/bin/python run.py advise --cash "30tr"          # ghi đè ngân sách tháng này
-.venv/bin/python run.py advise --cash-wallet bank     # ngân sách = số dư ví bank thật (everyday)
+.venv/bin/python run.py advise --cash-wallet cash     # ngân sách = số dư ví cash thật (everyday)
 .venv/bin/python run.py advise --group VN30 --extra "GMD,VNM"  # ép thêm mã ngoài rổ vào shortlist
 .venv/bin/python run.py advise --no-mcp               # text-mode (rule-based + LLM-verify, không TCBS)
+.venv/bin/python run.py advise --require-mcp          # bắt lỗi nếu TCBS chưa auth (không fallback)
 ```
 
-Ngân sách: `--cash` (gõ tay) > `--cash-wallet bank[,cash]` (lấy số dư ví thật từ everyday
-`GET /api/wallet`) > mặc định hồ sơ. `--cash-wallet` cần env `EVERYDAY_API_BASE` (URL API
-everyday, vd HTTPS public) + `EVERYDAY_ADMIN_TOKEN`. Kế hoạch tính **theo lô 100 cp** trong
-ngân sách + in tiền mặt dư. `--extra` ép mã không thuộc rổ (vd GMD ngoài VN30) vào shortlist.
+Ngân sách **mặc định = số dư ví bank realtime từ everyday** (bỏ hardcode 23tr): `--cash`
+(gõ tay) > `--cash-wallet bank[,cash]` (chỉ định ví) > ví bank mặc định. `--cash-wallet`
+cần env `EVERYDAY_API_BASE` (URL API everyday, vd HTTPS public) + `EVERYDAY_ADMIN_TOKEN`.
+Kế hoạch tính **theo lô 100 cp** trong ngân sách + in tiền mặt dư. `--extra` ép mã không
+thuộc rổ (vd GMD ngoài VN30) vào shortlist.
 
 Trả lời 4 phần: (1) rót tiền mới vào mã nào + tỷ lệ, (2) bán/giảm/rotate, (3) xử lý tập
 trung (bán bớt vs pha loãng bằng tiền mới), (4) điểm vào (chia lệnh, tránh RSI≥70). Header
-in `nguồn: tcbs-mcp | text | fallback-text`. Cần `tcbs` MCP đã auth (xem mục trên) cho
-MCP-mode; `--no-mcp` chạy được không cần TCBS.
+in `nguồn: tcbs-mcp | text | fallback-text`. Khi fallback text-mode có **banner cảnh báo
+nổi bật** (mất rating/khối ngoại real-time) — dùng `--require-mcp` để bắt lỗi thay vì âm
+thầm fallback. Cần `tcbs` MCP đã auth (xem mục trên) cho MCP-mode; `--no-mcp` chạy được
+không cần TCBS.
+
+### Máy quét EOD (`watch`)
+
+`watch` quét cuối phiên: đọc danh mục + số dư **ví bank realtime** từ everyday, chỉ báo
+khi CÓ VIỆC — **im lặng** khi danh mục ổn và không có tiền rảnh đáng kể. Khi có trigger
+(RSI≥70, tập trung >25% NAV, tín hiệu SELL, thủng SMA50, tin xấu mới) hoặc đủ tiền mua ≥1
+lô, LLM (TCBS MCP, fallback text) đề xuất GIỮ/GIẢM/BÁN + rotate/giải ngân, có **guard chống
+churn** (chỉ xoay khi lợi thế vượt ~0.5% round-trip + bù T+2).
+
+```bash
+.venv/bin/python run.py watch --group VN30
+.venv/bin/python run.py watch --holdings "FPT:75,MBB:12" --extra "GMD,VNM"
+.venv/bin/python run.py watch --require-mcp           # bắt lỗi nếu TCBS chưa auth
+```
+
+Ngân sách mua = số dư ví bank realtime (không hardcode). Fallback text-mode cũng có banner
+cảnh báo như `advise`.
+
+### Cache & journal
+
+Dữ liệu vnstock được **cache theo ngày** ở `.cache/<YYYY-MM-DD>/…` (giảm rate-limit); đặt
+`VN_NO_CACHE=1` để bỏ qua cache (bust). Mỗi lần chạy `advise`/`recommend`/`watch` ghi
+**audit trail** vào `reports/journal/` (JSON + `.md` tóm tắt) để tra lại "tuần/tháng trước
+khuyên gì".
 
 ### Khuyến nghị danh mục (`recommend`)
 

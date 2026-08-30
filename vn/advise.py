@@ -16,7 +16,10 @@ from .profile import load_profile, profile_system
 
 
 def _resolve_cash(cash: str | None, cash_wallet: tuple[str, ...] | None) -> tuple[str, dict | None]:
-    """→ (cash_txt cho prompt, thông tin ví nếu lấy từ everyday). Ưu tiên --cash > ví > hồ sơ."""
+    """→ (cash_txt cho prompt, thông tin ví nếu lấy từ everyday).
+
+    Ưu tiên --cash > ví chỉ định > ví bank mặc định (không còn hardcode 23tr).
+    """
     if cash:
         return cash, None
     if cash_wallet:
@@ -25,7 +28,10 @@ def _resolve_cash(cash: str | None, cash_wallet: tuple[str, ...] | None) -> tupl
         txt = (f"{info['total']:,}đ (số dư ví {kinds} thật từ everyday hôm nay — "
                "đây là TOÀN BỘ tiền có thể tiêu tháng này)")
         return txt, info
-    return "23 triệu VND (23.000.000đ, DCA về ngày 1 đầu tháng)", None
+    info = pf.fetch_cash(("bank",))  # raise PortfolioError nếu everyday không sẵn
+    txt = (f"{info['total']:,}đ (số dư ví bank thật từ everyday hôm nay — "
+           "TOÀN BỘ tiền có thể tiêu)")
+    return txt, info
 
 MAX_CANDIDATES = 3  # số ứng viên mới đưa vào shortlist MCP (kiểm soát số tool-call)
 
@@ -116,7 +122,8 @@ def _mcp_prompt(group, macro, held, cands, ranking_lines, cash_txt) -> str:
 def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: str = "vn_stock",
            cash: str | None = None, throttle: float = 2.2, llm_top: int = 5,
            use_mcp: bool = True, extra: list[str] | None = None,
-           cash_wallet: tuple[str, ...] | None = None) -> dict:
+           cash_wallet: tuple[str, ...] | None = None,
+           require_mcp: bool = False) -> dict:
     if not _llm_available():
         return {"error": "cần LLM (VN_LLM_BACKEND=claude-cli|api) cho advise"}
     if not load_profile():
@@ -140,6 +147,9 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
             plan = tcbs_mcp._llm_mcp(prompt, system=profile_system(tcbs_mcp._TCBS_SYS))
             mode = "tcbs-mcp"
         except tcbs_mcp.TcbsError as e:
+            if require_mcp:
+                return {"error": f"TCBS MCP không dùng được (--require-mcp bật): {e}. "
+                                 "Chạy: claude → /mcp → tcbs → Authenticate"}
             plan = _llm(_text_prompt(group, macro, lines, cash_txt),
                         system=profile_system(_DEFAULT_SYS), max_tokens=1500)
             mode = f"fallback-text ({e})"

@@ -4,6 +4,7 @@ __pycache__/
 .env
 TradingAgents/
 results/
+.cache/
 AGENTS.md
 
 # Dữ liệu tài chính cá nhân + toạ độ hạ tầng — giữ local, KHÔNG version-control

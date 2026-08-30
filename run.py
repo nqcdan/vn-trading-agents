@@ -9,7 +9,8 @@ from __future__ import annotations
 import argparse
 import json
 
-from vn import agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv, tcbs as tcbs_mcp
+from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
+                tcbs as tcbs_mcp, watch as watch_mod, journal)
 
 
 def _print(obj):
@@ -130,6 +131,7 @@ def cmd_recommend(a):
     print("\n◆ = mã đang giữ. BUY-WAIT = tín hiệu mua nhưng RSI≥70 (chờ hạ nhiệt).")
     print("LLM cột cuối = phán quyết sâu (thắng rule-based khi lệch, vd định giá đắt).")
     print("Công cụ giáo dục — KHÔNG phải khuyến nghị đầu tư.")
+    journal.record("recommend", res)
     if a.json:
         _print(res)
 
@@ -139,7 +141,8 @@ def cmd_advise(a):
     cash_wallet = tuple(s.strip() for s in a.cash_wallet.split(",")) if a.cash_wallet else None
     res = adv.advise(a.group, holdings_csv=a.holdings, asset_class=a.asset_class,
                      cash=a.cash, throttle=a.throttle, llm_top=a.llm_top,
-                     use_mcp=not a.no_mcp, extra=extra, cash_wallet=cash_wallet)
+                     use_mcp=not a.no_mcp, extra=extra, cash_wallet=cash_wallet,
+                     require_mcp=a.require_mcp)
     if "error" in res:
         print(f"Lỗi: {res['error']}")
         return
@@ -148,12 +151,16 @@ def cmd_advise(a):
     if ci:
         detail = ", ".join(f"{w['name']} {w['balance']:,}" for w in ci["wallets"])
         print(f"\nNgân sách (ví {'+'.join(ci['kinds'])} từ everyday): {ci['total']:,}đ — {detail}")
+    if str(res.get("mode", "")).startswith("fallback"):
+        print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
+        print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
     print(f"\n=== Kế hoạch tháng | rổ {res['group']} | nguồn: {res.get('mode')} "
           f"| vĩ mô voz: {m['signal']} (net {m['net']}) ===\n")
     print(res["plan"])
     if res.get("errors"):
         print(f"\n(rate-limit bỏ qua: {', '.join(e.split(':')[0] for e in res['errors'])})")
     print("\n— Phân tích tham khảo theo PROFILE.md, KHÔNG phải khuyến nghị đầu tư.")
+    journal.record("advise", res, summary_md=res.get("plan", ""))
     if a.json:
         _print(res)
 
@@ -167,6 +174,34 @@ def cmd_tcbs(a):
     print(f"\n=== {res['symbol']} qua TCBS MCP (real-time) ===\n")
     print(res["analysis"])
     print("\n— Dữ liệu TCBS real-time + PROFILE.md. KHÔNG phải khuyến nghị đầu tư.")
+    if a.json:
+        _print(res)
+
+
+def cmd_watch(a):
+    extra = [s for s in (a.extra or "").split(",") if s.strip()]
+    res = watch_mod.watch(asset_class=a.asset_class, holdings_csv=a.holdings,
+                          require_mcp=a.require_mcp, throttle=a.throttle,
+                          extra=extra, group=a.group)
+    if "error" in res:
+        print(f"Lỗi: {res['error']}")
+        return
+    if res.get("silent"):
+        print("✓ Không có tín hiệu hành động hôm nay (danh mục ổn, không có tiền rảnh đáng kể).")
+        journal.record("watch", res)
+        return
+    print(f"\n=== Watch EOD | rổ {res.get('group')} | nguồn: {res.get('mode')} ===")
+    for t in res.get("triggers", []):
+        print(f"• {t['symbol']}: " + "; ".join(t.get("reasons", [])))
+    if res.get("proposal"):
+        print(f"\n{res['proposal']}")
+    b = res.get("budget")
+    if b:
+        print(f"\nNgân sách (ví bank realtime): {b:,}đ")
+    if str(res.get("mode", "")).startswith("fallback"):
+        print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
+        print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
+    journal.record("watch", res, summary_md=res.get("proposal") or "")
     if a.json:
         _print(res)
 
@@ -225,10 +260,23 @@ def main():
                     help="lấy ngân sách = số dư ví everyday theo kind, vd 'bank' hoặc 'bank,cash'")
     pd.add_argument("--llm-top", type=int, default=5, help="số ứng viên BUY LLM-verify (text-mode)")
     pd.add_argument("--no-mcp", action="store_true", help="tắt TCBS MCP, dùng text-mode (rule-based+LLM)")
+    pd.add_argument("--require-mcp", action="store_true",
+                    help="bắt lỗi nếu TCBS MCP không dùng được (không âm thầm fallback text)")
     pd.add_argument("--extra", default=None, help="ép thêm mã vào shortlist, vd 'GMD,VNM' (ngoài rổ)")
     pd.add_argument("--throttle", type=float, default=2.2)
     pd.add_argument("--json", action="store_true")
     pd.set_defaults(func=cmd_advise)
+
+    pw = sub.add_parser("watch", help="máy quét EOD: im lặng khi không có việc, đề xuất rotate/giải ngân")
+    pw.add_argument("--asset-class", default="vn_stock", help="vn_stock | vn_fund | crypto")
+    pw.add_argument("--holdings", default=None, help="'FPT:75,MBB:12' (không có → everyday API)")
+    pw.add_argument("--group", default="VN30", help="rổ quét ứng viên rotate/giải ngân")
+    pw.add_argument("--extra", default=None, help="ép thêm mã vào ứng viên, vd 'GMD,VNM'")
+    pw.add_argument("--require-mcp", action="store_true",
+                    help="bắt lỗi nếu TCBS MCP không dùng được (không âm thầm fallback text)")
+    pw.add_argument("--throttle", type=float, default=2.2)
+    pw.add_argument("--json", action="store_true")
+    pw.set_defaults(func=cmd_watch)
 
     pt = sub.add_parser("tcbs", help="phân tích 1 mã qua TCBS MCP (real-time, cần auth OAuth 1 lần)")
     pt.add_argument("symbol")
