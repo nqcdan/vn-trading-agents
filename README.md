@@ -154,9 +154,9 @@ lập kế hoạch. Tự fallback text-mode nếu TCBS chưa auth.
 ```
 
 Ngân sách: `--cash` (gõ tay) > `--cash-wallet bank[,cash]` (lấy số dư ví thật từ everyday
-`/api/wallet`, cần `EVERYDAY_API_BASE`+`EVERYDAY_ADMIN_TOKEN` — vd qua SSH tunnel tới admin
-cloud) > mặc định hồ sơ. Kế hoạch tính **theo lô 100 cp** trong ngân sách + in tiền mặt dư.
-`--extra` ép mã không thuộc rổ (vd GMD ngoài VN30) vào shortlist để MCP xét.
+`GET /api/wallet`) > mặc định hồ sơ. `--cash-wallet` cần env `EVERYDAY_API_BASE` (URL API
+everyday, vd HTTPS public) + `EVERYDAY_ADMIN_TOKEN`. Kế hoạch tính **theo lô 100 cp** trong
+ngân sách + in tiền mặt dư. `--extra` ép mã không thuộc rổ (vd GMD ngoài VN30) vào shortlist.
 
 Trả lời 4 phần: (1) rót tiền mới vào mã nào + tỷ lệ, (2) bán/giảm/rotate, (3) xử lý tập
 trung (bán bớt vs pha loãng bằng tiền mới), (4) điểm vào (chia lệnh, tránh RSI≥70). Header
