@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+TradingAgents/
+results/
+AGENTS.md
+
+# Dữ liệu tài chính cá nhân + toạ độ hạ tầng — giữ local, KHÔNG version-control
+PROFILE.md
+reports/
+portfolio.sh
