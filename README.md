@@ -36,7 +36,11 @@ vn-trading-agents/
 cd ~/dev/vn-trading-agents
 uv venv --python 3.10 .venv
 VIRTUAL_ENV=.venv uv pip install -r requirements.txt
+cp .env.example .env    # rồi điền: VN_LLM_BACKEND, EVERYDAY_API_BASE + token…
 ```
+
+Cấu hình qua **`.env` ở root** (gitignored) — `vn` tự nạp khi import (`vn/env.py`, stdlib,
+không override biến shell đã có). Không cần export vào `~/.zshrc`.
 
 ## Dùng
 
