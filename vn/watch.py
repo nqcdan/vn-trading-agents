@@ -168,8 +168,10 @@ def _prompt(triggers: list[dict], candidates: list[dict], budget: int | None,
         f"thế mã mới phải hơn ~{ROUND_TRIP_COST_PCT}% round-trip (phí 0.15%×2 + thuế bán 0.1% + "
         "slippage ~0.1%) VÀ bù được thời gian chết T+2 (bán hôm nay tiền về sau 2 phiên). Lợi "
         "thế mỏng / chỉ nhúng nhẹ → GIỮ NGUYÊN, nói rõ 'không đủ biên để xoay'.\n"
-        + ("Có tiền rảnh: rót vào mã đang được ủng hộ nhất, mua theo LÔ 100cp trong đúng ngân "
-           "sách ví, in số lô + tiền dư.\n" if has_cash_op else "")
+        + ("Có tiền rảnh: RẢI vào 2–3 mã, KHÔNG dồn hết 1 mã (tránh tạo tập trung mới thay cho "
+           "mã đang lệch). Không để mã MUA MỚI nào vượt ~20–25% NAV. Ưu tiên ngành CHƯA có trong "
+           "danh mục để phân tán. Mua theo LÔ 100cp trong đúng ngân sách ví, in số lô mỗi mã + "
+           "tiền dư.\n" if has_cash_op else "")
         + "Đây KHÔNG phải auto-trade — chỉ là đề xuất để người dùng cân nhắc. Trình bày tiếng "
         "Việt, ngắn gọn, có số. Kết: 'tham khảo, không phải khuyến nghị đầu tư'."
     )
