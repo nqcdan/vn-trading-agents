@@ -36,16 +36,20 @@ def _resolve_cash(cash: str | None, cash_wallet: tuple[str, ...] | None) -> tupl
 MAX_CANDIDATES = 3  # số ứng viên mới đưa vào shortlist MCP (kiểm soát số tool-call)
 
 
-def _ranking_lines(rows: list[dict]) -> list[str]:
+def _ranking_lines(rows: list[dict], keep: set[str] | None = None) -> list[str]:
     out = []
     for r in rows:
         if "error" in r:
             continue
+        if keep is not None and r["symbol"].upper() not in keep:
+            continue
         tag = "GIỮ" if r["held"] else "mới"
         w = f" {r['weight_pct']:.0f}%" if isinstance(r.get("weight_pct"), (int, float)) else ""
         roe = f"{r['roe']:.0%}" if isinstance(r.get("roe"), (int, float)) else "—"
+        c = r.get("close")
+        px = f" giá≈{int(c * 1000):,}đ" if isinstance(c, (int, float)) else ""
         line = (f"{r['symbol']} [{tag}{w}] {r['signal']} align={r['align']} "
-                f"RSI={r.get('rsi')} P/E={r.get('pe')} P/B={r.get('pb')} ROE={roe} → {r['action']}")
+                f"RSI={r.get('rsi')} P/E={r.get('pe')} P/B={r.get('pb')} ROE={roe}{px} → {r['action']}")
         if r.get("llm_action"):
             lc = r.get("llm_conf")
             line += f"  ⟨LLM: {r['llm_action']}" + (f" {lc:.2f}" if isinstance(lc, (int, float)) else "") + "⟩"
@@ -137,12 +141,23 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
     # Text mode: LLM-verify top rồi 1 prompt text.
     r = rec.recommend(group, holdings_csv=holdings_csv, asset_class=asset_class,
                       llm_top=0 if use_mcp else llm_top, throttle=throttle)
-    lines = _ranking_lines(r["ranking"])
+    lines = _ranking_lines(r["ranking"])          # đầy đủ — cho journal/return
     macro = r["macro"]
+    held, cands = _shortlist(r["ranking"], extra)
+    keep = {s.upper() for s in held + cands}
+    prompt_lines = _ranking_lines(r["ranking"], keep=keep)  # trim → LLM khỏi nhồi cả rổ
+
+    def _text_fallback(reason: str) -> tuple[str, str]:
+        try:
+            p = _llm(_text_prompt(group, macro, prompt_lines, cash_txt),
+                     system=profile_system(_DEFAULT_SYS), max_tokens=1500, timeout=220)
+            return p, (reason or "text")
+        except Exception as e:  # timeout/CLI lỗi → degrade sạch, không crash
+            return (f"(LLM tổng hợp thất bại: {e}. Bảng tín hiệu rule-based vẫn dùng được ở "
+                    "phần ranking_lines / --json.)"), f"llm-failed ({e})"
 
     if use_mcp:
-        held, cands = _shortlist(r["ranking"], extra)
-        prompt = _mcp_prompt(group, macro, held, cands, lines, cash_txt)
+        prompt = _mcp_prompt(group, macro, held, cands, prompt_lines, cash_txt)
         try:
             plan = tcbs_mcp._llm_mcp(prompt, system=profile_system(tcbs_mcp._TCBS_SYS))
             mode = "tcbs-mcp"
@@ -150,13 +165,9 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
             if require_mcp:
                 return {"error": f"TCBS MCP không dùng được (--require-mcp bật): {e}. "
                                  "Chạy: claude → /mcp → tcbs → Authenticate"}
-            plan = _llm(_text_prompt(group, macro, lines, cash_txt),
-                        system=profile_system(_DEFAULT_SYS), max_tokens=1500)
-            mode = f"fallback-text ({e})"
+            plan, mode = _text_fallback(f"fallback-text ({e})")
     else:
-        plan = _llm(_text_prompt(group, macro, lines, cash_txt),
-                    system=profile_system(_DEFAULT_SYS), max_tokens=1500)
-        mode = "text"
+        plan, mode = _text_fallback("text")
 
     return {"group": group, "macro": macro, "mode": mode, "ranking_lines": lines,
             "cash_txt": cash_txt, "cash_info": cash_info,

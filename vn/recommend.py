@@ -38,7 +38,8 @@ def _screen_one(sym: str, throttle: float) -> dict:
             return {
                 "symbol": sym, "score": score, "signal": _signal(score, overbought),
                 "align": align, "rsi": rsi, "pe": fund.get("pe"), "pb": pb,
-                "roe": fund.get("roe"), "technical": ta["signal"], "fundamental": fa["signal"],
+                "roe": fund.get("roe"), "close": ind.get("close"),
+                "technical": ta["signal"], "fundamental": fa["signal"],
                 "notes": notes,
             }
         except BaseException as e:

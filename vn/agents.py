@@ -55,17 +55,20 @@ def _llm_via_cli(prompt: str, system: str, timeout: int = 90) -> str:
     cmd = ["claude", "-p", prompt, "--model", model,
            "--append-system-prompt", (system or _DEFAULT_SYS) + _CLI_SYS_GUARD,
            "--strict-mcp-config", "--disallowed-tools", *_NO_TOOLS]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
-                       cwd="/tmp")  # /tmp: tránh nạp CLAUDE.md/MCP của project
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                           cwd="/tmp")  # /tmp: tránh nạp CLAUDE.md/MCP của project
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"claude cli timeout {timeout}s") from e
     if r.returncode != 0:
         raise RuntimeError((r.stderr or "claude cli failed")[:200])
     return r.stdout.strip()
 
 
-def _llm(prompt: str, system: str = "", max_tokens: int = 700) -> str:
+def _llm(prompt: str, system: str = "", max_tokens: int = 700, timeout: int = 90) -> str:
     backend = _backend()
     if backend == "claude-cli":
-        return _llm_via_cli(prompt, system)
+        return _llm_via_cli(prompt, system, timeout)
     import anthropic
     client = anthropic.Anthropic()
     model = os.environ.get("VN_LLM_MODEL", "claude-sonnet-4-6")
