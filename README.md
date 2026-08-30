@@ -147,9 +147,16 @@ lập kế hoạch. Tự fallback text-mode nếu TCBS chưa auth.
 
 ```bash
 .venv/bin/python run.py advise --holdings "FPT:75.3,MBB:12.3,HAH:8.2,HPG:4.2" --group VN30
-.venv/bin/python run.py advise --cash "30tr"          # ghi đè tiền mới tháng này
+.venv/bin/python run.py advise --cash "30tr"          # ghi đè ngân sách tháng này
+.venv/bin/python run.py advise --cash-wallet bank     # ngân sách = số dư ví bank thật (everyday)
+.venv/bin/python run.py advise --group VN30 --extra "GMD,VNM"  # ép thêm mã ngoài rổ vào shortlist
 .venv/bin/python run.py advise --no-mcp               # text-mode (rule-based + LLM-verify, không TCBS)
 ```
+
+Ngân sách: `--cash` (gõ tay) > `--cash-wallet bank[,cash]` (lấy số dư ví thật từ everyday
+`/api/wallet`, cần `EVERYDAY_API_BASE`+`EVERYDAY_ADMIN_TOKEN` — vd qua SSH tunnel tới admin
+cloud) > mặc định hồ sơ. Kế hoạch tính **theo lô 100 cp** trong ngân sách + in tiền mặt dư.
+`--extra` ép mã không thuộc rổ (vd GMD ngoài VN30) vào shortlist để MCP xét.
 
 Trả lời 4 phần: (1) rót tiền mới vào mã nào + tỷ lệ, (2) bán/giảm/rotate, (3) xử lý tập
 trung (bán bớt vs pha loãng bằng tiền mới), (4) điểm vào (chia lệnh, tránh RSI≥70). Header
