@@ -237,9 +237,9 @@ def watch(asset_class: str = "vn_stock", holdings_csv: str | None = None,
 
     prompt = _prompt(triggers, candidates, budget, has_cash_op)
     try:
-        text = tcbs._llm_mcp(prompt, system=profile_system(tcbs._TCBS_SYS))
+        text, tcbs_ok = tcbs._llm_mcp(prompt, system=profile_system(tcbs._TCBS_SYS))
         result["proposal"] = text
-        result["mode"] = "mcp"
+        result["mode"] = "mcp" if tcbs_ok else "fallback-mcp-offline (rule-based, TCBS ngắt)"
     except tcbs.TcbsError as e:
         if require_mcp:
             return {"error": f"MCP TCBS không dùng được: {e}"}

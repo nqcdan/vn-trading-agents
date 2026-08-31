@@ -172,8 +172,8 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
     if use_mcp:
         prompt = _mcp_prompt(group, macro, held, cands, prompt_lines, cash_txt)
         try:
-            plan = tcbs_mcp._llm_mcp(prompt, system=profile_system(tcbs_mcp._TCBS_SYS))
-            mode = "tcbs-mcp"
+            plan, tcbs_ok = tcbs_mcp._llm_mcp(prompt, system=profile_system(tcbs_mcp._TCBS_SYS))
+            mode = "tcbs-mcp" if tcbs_ok else "fallback-mcp-offline (rule-based, TCBS ngắt)"
         except tcbs_mcp.TcbsError as e:
             if require_mcp:
                 return {"error": f"TCBS MCP không dùng được (--require-mcp bật): {e}. "

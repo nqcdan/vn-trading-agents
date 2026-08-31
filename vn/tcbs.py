@@ -21,15 +21,43 @@ class TcbsError(RuntimeError):
     pass
 
 
+_MARK_OK = "[[TCBS:OK]]"
+_MARK_OFF = "[[TCBS:OFFLINE]]"
+
 _TCBS_SYS = (
     "Bạn là chuyên gia phân tích chứng khoán VN. Dùng các tool mcp__tcbs__* để LẤY DỮ LIỆU "
     "TCBS real-time. KHÔNG dùng Bash/Read/Write/WebSearch. Không nhắc code/thư mục/môi trường. "
-    "Trả lời tiếng Việt."
+    "Trả lời tiếng Việt.\n"
+    f"BẮT BUỘC kết thúc bằng đúng MỘT dòng marker: '{_MARK_OK}' nếu bạn ĐÃ gọi thành công ít "
+    f"nhất một tool mcp__tcbs__* và dùng dữ liệu đó; '{_MARK_OFF}' nếu bất kỳ tool tcbs nào "
+    "lỗi / không gọi được / chưa auth khiến bạn phải dựa vào số liệu có sẵn trong prompt."
 )
 
 
-def _llm_mcp(prompt: str, system: str = "", timeout: int = 240) -> str:
-    """Gọi claude CLI với tool TCBS bật (không --strict-mcp-config để nạp user-scope tcbs)."""
+def _parse_tcbs_marker(out: str) -> tuple[str, bool]:
+    """Bóc marker cuối output → (text sạch, tcbs_ok). Thiếu marker → heuristic theo cụm lỗi."""
+    low = out.lower()
+    if _MARK_OFF.lower() in low:
+        ok = False
+    elif _MARK_OK.lower() in low:
+        ok = True
+    else:
+        ok = not any(p in low for p in (
+            "chưa kết nối", "không kết nối", "server tcbs", "unavailable",
+            "needs authentication", "chưa auth"))
+    clean = out
+    for m in (_MARK_OK, _MARK_OFF):
+        clean = clean.replace(m, "")
+    return clean.strip(), ok
+
+
+def _llm_mcp(prompt: str, system: str = "", timeout: int = 240) -> tuple[str, bool]:
+    """Gọi claude CLI với tool TCBS bật (không --strict-mcp-config để nạp user-scope tcbs).
+
+    → (text, tcbs_ok). tcbs_ok=False nghĩa TCBS ngắt giữa phiên: text vẫn là phân tích
+    rule-based hợp lệ nhưng THIẾU rating/đồng thuận/khối ngoại real-time. Chỉ raise TcbsError
+    khi auth hỏng hẳn (không có output dùng được).
+    """
     model = os.environ.get("VN_LLM_MODEL", "sonnet")
     cmd = ["claude", "-p", prompt, "--model", model,
            "--append-system-prompt", system or _TCBS_SYS,
@@ -47,7 +75,7 @@ def _llm_mcp(prompt: str, system: str = "", timeout: int = 240) -> str:
     out = r.stdout.strip()
     if not out or "Needs authentication" in out or "không tìm thấy tool" in out.lower():
         raise TcbsError("MCP TCBS chưa auth / không có tool — chạy: claude → /mcp → tcbs → Authenticate")
-    return out
+    return _parse_tcbs_marker(out)
 
 
 def analyze_tcbs(symbol: str) -> dict:
@@ -70,5 +98,6 @@ def analyze_tcbs(symbol: str) -> dict:
         "4) Rủi ro chính + điểm vào (chia lệnh, tránh mua đuổi).\n"
         "Ngắn gọn, có số."
     )
-    text = _llm_mcp(prompt, system=profile_system(_TCBS_SYS))
-    return {"symbol": sym, "source": "tcbs-mcp", "analysis": text}
+    text, tcbs_ok = _llm_mcp(prompt, system=profile_system(_TCBS_SYS))
+    return {"symbol": sym, "source": "tcbs-mcp" if tcbs_ok else "rule-based (TCBS ngắt)",
+            "tcbs_ok": tcbs_ok, "analysis": text}

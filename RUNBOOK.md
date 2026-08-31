@@ -14,10 +14,14 @@ Quét danh mục cuối ngày. Máy tự im lặng khi không có gì đáng là
 
 .venv/bin/python run.py watch --group VN30
 
+**Về dữ liệu:** lệnh này chỉ đạt chất lượng cao nhất khi TCBS MCP đăng nhập còn hiệu lực. Trong phiên headless (`run.py`), token TCBS thường KHÔNG kết nối → dù header in `nguồn: mcp`, thực chất mô hình chạy **rule-based** (RSI, score, P/E, P/B, ROE có sẵn), không có rating/đồng thuận CTCK/khối ngoại real-time. Dấu hiệu: trong phần đề xuất có dòng "Server TCBS chưa kết nối". Muốn dữ liệu thật → đăng nhập lại TCBS (mục 5) ngay trước khi chạy.
+
+Việc quét trigger (RSI cao / tập trung / thủng SMA50 / tin xấu) và kiểm tiền rảnh **luôn là rule-based**, chạy được không cần TCBS.
+
 Đọc kết quả:
 - Báo "không có tín hiệu" → danh mục ổn, không có tiền rảnh đáng kể. Đóng máy, không làm gì.
 - Có đề xuất GIỮ / GIẢM / BÁN kèm mã rotate hoặc giải ngân → xem lý do từng mã, rồi tự quyết có đặt lệnh hay không.
-- Có cảnh báo "TCBS không dùng được" → dữ liệu real-time đang thiếu, độ tin thấp hơn; đăng nhập lại (mục 5) rồi chạy lại nếu cần chắc.
+- Nếu đề xuất có dòng "Server TCBS chưa kết nối" (hoặc banner "TCBS không dùng được") → đang là rule-based, thiếu real-time; đăng nhập lại (mục 5) rồi chạy lại nếu cần chắc.
 
 ## 2. Hàng tuần — rà danh mục và rổ
 
@@ -71,7 +75,7 @@ Xem giá trị và chấm điểm định kỳ:
 
 ## 5. Khi gặp trục trặc
 
-Cảnh báo "TCBS không dùng được" — đăng nhập lại: mở `claude`, gõ `/mcp`, chọn tcbs → Authenticate (đăng nhập TCBS + iOTP). Xong chạy lại lệnh.
+Muốn dữ liệu TCBS real-time cho `watch` / `advise` / `tcbs` — đăng nhập lại: mở `claude`, gõ `/mcp`, chọn tcbs → Authenticate (đăng nhập TCBS + iOTP), rồi chạy lệnh ngay sau đó. Lưu ý: các lệnh này có thể in `nguồn: mcp` nhưng nếu trong kết quả có dòng "Server TCBS chưa kết nối" thì thực chất đang chạy rule-based — nhãn `mcp` chỉ nghĩa là đã thử, không đảm bảo TCBS thật sự trả dữ liệu.
 
 Báo lỗi lấy dữ liệu / bị chặn tần suất — giãn nhịp rồi chạy lại:
 

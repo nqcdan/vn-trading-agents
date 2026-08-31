@@ -175,9 +175,15 @@ def cmd_tcbs(a):
     except tcbs_mcp.TcbsError as e:
         print(f"TCBS MCP lỗi: {e}")
         return
-    print(f"\n=== {res['symbol']} qua TCBS MCP (real-time) ===\n")
+    ok = res.get("tcbs_ok", True)
+    src = "TCBS MCP (real-time)" if ok else "RULE-BASED (TCBS ngắt — KHÔNG có real-time)"
+    print(f"\n=== {res['symbol']} qua {src} ===\n")
     print(res["analysis"])
-    print("\n— Dữ liệu TCBS real-time + PROFILE.md.")
+    if ok:
+        print("\n— Dữ liệu TCBS real-time + PROFILE.md.")
+    else:
+        print("\n⚠️  TCBS server không kết nối trong phiên — phân tích dựa số liệu EOD sẵn có, "
+              "thiếu rating/đồng thuận CTCK/khối ngoại. Đăng nhập lại: claude → /mcp → tcbs → Authenticate.")
     if a.json:
         _print(res)
 
