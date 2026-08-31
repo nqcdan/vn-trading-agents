@@ -12,7 +12,7 @@ import time
 from . import vn_data, portfolio as pf
 from .agents import technical_analyst, fundamental_analyst, macro_mood, analyze, _llm_available
 
-CONCENTRATION_CAP = 25.0  # % NAV: 1 mã vượt ngưỡng này → cờ giảm tỷ trọng
+CONCENTRATION_CAP = 25.0  # % NAV: vượt → gắn cờ thông tin ⚠tập trung (không ép giảm; LLM/người quyết)
 EXPENSIVE_PB = 3.0        # P/B > mức này → phạt điểm (bài học VCB: đúng chất, sai giá)
 
 
@@ -63,10 +63,11 @@ def _action(row: dict, held: bool, weight: float | None) -> str:
         return "LỖI"
     sig = row["signal"]
     if held:
+        action = {"BUY": "GOM THÊM", "BUY-WAIT": "GIỮ (chờ RSI hạ)",
+                  "HOLD": "GIỮ", "SELL": "BÁN/GIẢM"}[sig]
         if weight is not None and weight > CONCENTRATION_CAP:
-            return "GIẢM TỶ TRỌNG (tập trung)"
-        return {"BUY": "GOM THÊM", "BUY-WAIT": "GIỮ (chờ RSI hạ)",
-                "HOLD": "GIỮ", "SELL": "BÁN/GIẢM"}[sig]
+            return f"{action} ·⚠tập trung"
+        return action
     return {"BUY": "MUA MỚI", "BUY-WAIT": "THEO DÕI (đang nóng)",
             "HOLD": "—", "SELL": "—"}[sig]
 

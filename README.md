@@ -143,8 +143,9 @@ turn. Token OAuth có thể hết hạn → khi `tcbs` báo cần auth, chạy l
 
 ### Hồ sơ NĐT (`PROFILE.md`) + kế hoạch tháng (`advise`)
 
-`PROFILE.md` ở root là **hồ sơ đầu tư cá nhân hoá** (khẩu vị rủi ro, DCA hàng tháng, trần
-số mã, ràng buộc không margin, chỉ dẫn tối ưu). `vn/profile.py` inject nó vào **system
+`PROFILE.md` ở root là **hồ sơ đầu tư cá nhân hoá** (khẩu vị rủi ro, trần số mã, ràng buộc
+không margin, chỉ dẫn tối ưu). Ngân sách không cố định theo lịch — luôn theo số dư ví bank
+realtime. `vn/profile.py` inject nó vào **system
 prompt** của `trader()` → mọi quyết định LLM (`analyze`/`recommend`) tự cân theo khẩu vị.
 
 `advise` ra kế hoạch hành động tháng, tối ưu TOÀN BỘ danh mục + dòng tiền mới. **Mặc định
@@ -201,7 +202,7 @@ tiến về phía trước.
 ```bash
 .venv/bin/python run.py paper init                       # seed sổ từ portfolio + số dư ví bank
 .venv/bin/python run.py paper init --seed-cash 100000000 # seed tiền mặt thủ công
-.venv/bin/python run.py paper cash 23000000              # nạp thêm tiền (DCA tháng)
+.venv/bin/python run.py paper cash 23000000              # nạp thêm tiền vào sổ khi bơm vốn
 .venv/bin/python run.py paper advise --group VN30        # agent advise → auto-apply vào sổ
 .venv/bin/python run.py paper watch  --group VN30         # agent watch  → auto-apply vào sổ
 .venv/bin/python run.py paper mark                       # định giá: NAV + P&L từng vị thế
@@ -238,8 +239,9 @@ danh mục. Hai tầng để cân tốc độ vs độ tin:
 2. **LLM-verify top BUY** (`--llm-top N`, mặc định 4): chạy `analyze()` đầy đủ để bác các
    BUY thổi phồng bởi rule-based; cột LLM in phán quyết sâu thắng khi lệch.
 
-Cột **KHUYẾN NGHỊ** map theo vị thế: `GOM THÊM` / `MUA MỚI` / `GIỮ` / `GIẢM TỶ TRỌNG`
-(mã > 25% NAV) / `BÁN` / `THEO DÕI` (BUY nhưng RSI ≥ 70, đang nóng).
+Cột **KHUYẾN NGHỊ** map theo vị thế: `GOM THÊM` / `MUA MỚI` / `GIỮ` / `BÁN` / `THEO DÕI`
+(BUY nhưng RSI ≥ 70, đang nóng). Mã > 25% NAV gắn thêm cờ `·⚠tập trung` — chỉ thông tin,
+KHÔNG ép giảm (LLM/người quyết, hợp profile "không áp trần cứng %/mã").
 
 ```bash
 # Danh mục thủ công 'SYM:tỷ_trọng' (tỷ trọng để bật cờ tập trung)
