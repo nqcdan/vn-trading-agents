@@ -68,7 +68,7 @@ def analyze_tcbs(symbol: str) -> dict:
         "2) Đọc rating TCBS + đồng thuận CTCK (giá mục tiêu vs giá hiện tại) + khối ngoại.\n"
         "3) QUYẾT ĐỊNH: BUY/HOLD/SELL + độ tin 0-1 + tỷ trọng gợi ý (theo khẩu vị hồ sơ).\n"
         "4) Rủi ro chính + điểm vào (chia lệnh, tránh mua đuổi).\n"
-        "Ngắn gọn, có số. Nhắc: tham khảo, không phải khuyến nghị đầu tư."
+        "Ngắn gọn, có số."
     )
     text = _llm_mcp(prompt, system=profile_system(_TCBS_SYS))
     return {"symbol": sym, "source": "tcbs-mcp", "analysis": text}

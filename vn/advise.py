@@ -99,7 +99,7 @@ def _text_prompt(group, macro, lines, cash_txt) -> str:
         "4) Điểm vào: chia lệnh, tránh mua đuổi RSI≥70.\n"
         f"RÀNG BUỘC: ngân sách cứng {cash_txt}; mua theo LÔ 100 cp (giá×100=tiền/lô). "
         "Tính số lô mỗi mã, tổng ≤ ngân sách, in tiền mặt còn dư.\n"
-        "Gọn, có số, tiếng Việt. Tham khảo, không phải khuyến nghị đầu tư."
+        "Gọn, có số, tiếng Việt."
         + _JSON_DIRECTIVE
     )
 
@@ -131,7 +131,7 @@ def _mcp_prompt(group, macro, held, cands, ranking_lines, cash_txt) -> str:
         "- In BẢNG: Mã | Giá | Tiền/lô (giá×100) | Số lô | Thành tiền | % ngân sách. "
         "Có dòng TỔNG + TIỀN DƯ. Nếu mã giá cao khiến 1 lô > phần ngân sách dự kiến → nói rõ "
         "và điều chỉnh (giảm số lô mã khác hoặc để dư tiền chờ tháng sau).\n\n"
-        "Trình bày gọn, có số, ghi rõ 'nguồn TCBS'. Tham khảo, không phải khuyến nghị đầu tư."
+        "Trình bày gọn, có số, ghi rõ 'nguồn TCBS'."
         + _JSON_DIRECTIVE
     )
 

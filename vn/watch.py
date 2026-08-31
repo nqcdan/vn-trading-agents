@@ -183,7 +183,7 @@ def _prompt(triggers: list[dict], candidates: list[dict], budget: int | None,
            "phép dồn 1 mã nếu đủ dữ kiện, không bắt buộc rải. Mua theo LÔ 100cp trong đúng ngân "
            "sách ví, in số lô + tiền dư.\n" if has_cash_op else "")
         + "Đây KHÔNG phải auto-trade — chỉ là đề xuất để người dùng cân nhắc. Trình bày tiếng "
-        "Việt, ngắn gọn, có số. Kết: 'tham khảo, không phải khuyến nghị đầu tư'."
+        "Việt, ngắn gọn, có số."
         + _JSON_DIRECTIVE
     )
 

@@ -93,7 +93,7 @@ def cmd_portfolio(a):
             return f"{v:>{w}.{d}f}" if isinstance(v, (int, float)) else f"{'—':>{w}}"
         print(f"{p['symbol']:5} {num(p.get('weight_pct'),8)}% {num(p.get('pnl_pct'),6)}% "
               f"{an['signal']:>9} {num(an.get('rsi14'))}{ob} {num(an.get('pe'))} {num(an.get('pb'))}")
-    print("\nNguồn: everyday /api/wallet/holdings. ⚠ = RSI≥70 quá mua. Không phải khuyến nghị đầu tư.")
+    print("\nNguồn: everyday /api/wallet/holdings. ⚠ = RSI≥70 quá mua.")
     if a.json:
         _print(res)
 
@@ -132,7 +132,6 @@ def cmd_recommend(a):
               f"{', '.join(e.split(':')[0] for e in res['errors'])}")
     print("\n◆ = mã đang giữ. BUY-WAIT = tín hiệu mua nhưng RSI≥70 (chờ hạ nhiệt).")
     print("LLM cột cuối = phán quyết sâu (thắng rule-based khi lệch, vd định giá đắt).")
-    print("Công cụ giáo dục — KHÔNG phải khuyến nghị đầu tư.")
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
     journal.record("recommend", {**res, "cost": snap})
     if a.json:
@@ -164,7 +163,6 @@ def cmd_advise(a):
     print(res["plan"])
     if res.get("errors"):
         print(f"\n(rate-limit bỏ qua: {', '.join(e.split(':')[0] for e in res['errors'])})")
-    print("\n— Phân tích tham khảo theo PROFILE.md, KHÔNG phải khuyến nghị đầu tư.")
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
     journal.record("advise", {**res, "cost": snap}, summary_md=res.get("plan", ""))
     if a.json:
@@ -179,7 +177,7 @@ def cmd_tcbs(a):
         return
     print(f"\n=== {res['symbol']} qua TCBS MCP (real-time) ===\n")
     print(res["analysis"])
-    print("\n— Dữ liệu TCBS real-time + PROFILE.md. KHÔNG phải khuyến nghị đầu tư.")
+    print("\n— Dữ liệu TCBS real-time + PROFILE.md.")
     if a.json:
         _print(res)
 

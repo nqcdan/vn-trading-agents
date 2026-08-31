@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Mục đích
 
-TradingAgents (multi-agent LLM trading) thích ứng cho **chứng khoán VN** (HOSE/HNX/UPCOM). Giữ tinh thần pipeline upstream (`analyst → bull/bear debate → trader → risk`) nhưng thay lớp dữ liệu bằng [`vnstock`](https://github.com/thinh-vu/vnstock) và mã hoá vi cấu trúc thị trường VN (biên độ, T+2, phí/thuế, không bán khống lẻ). Công cụ **nghiên cứu/giáo dục**, không phải khuyến nghị đầu tư.
+TradingAgents (multi-agent LLM trading) thích ứng cho **chứng khoán VN** (HOSE/HNX/UPCOM). Giữ tinh thần pipeline upstream (`analyst → bull/bear debate → trader → risk`) nhưng thay lớp dữ liệu bằng [`vnstock`](https://github.com/thinh-vu/vnstock) và mã hoá vi cấu trúc thị trường VN (biên độ, T+2, phí/thuế, không bán khống lẻ).
 
 ## Setup & Commands
 
