@@ -25,7 +25,7 @@ Việc quét trigger (RSI cao / tập trung / thủng SMA50 / tin xấu) và ki�
 
 ### Ví dụ output thật (rút gọn)
 
-```
+````
 === Watch EOD | rổ VN30 | nguồn: fallback-mcp-offline (rule-based, TCBS ngắt) ===
 • FPT: tỷ trọng 75.3% > 25.0% NAV (tập trung)
 • HPG: thủng SMA50 (close 22.1 < sma50 22.16)
@@ -59,7 +59,7 @@ Ngân sách (ví bank realtime): 44,577,682đ
 
 ⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác...).
 [LLM: 1 spawn, 98s]
-```
+````
 
 ### Cách đọc (dành cho người mới)
 
