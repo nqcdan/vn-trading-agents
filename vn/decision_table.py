@@ -221,22 +221,27 @@ _SENTIMENT_ICON = {"BULLISH": "🟢 tích cực", "BEARISH": "🔴 tiêu cực",
 _ICON = {"BULLISH": "🟢", "BEARISH": "🔴", "NEUTRAL": "⚪"}
 
 
-def render_macro(macro: dict, title_width: int = 74) -> str:
+def _date_anchor(date: str, link: str) -> str:
+    """`09-07` có link → [`09-07`](url); không link → `09-07`; không ngày → ''."""
+    if not date:
+        return ""
+    return f"[`{date}`]({link}) " if link else f"`{date}` "
+
+
+def render_macro(macro: dict, title_width: int = 78) -> str:
     sig = macro.get("signal", "NEUTRAL")
     out = [f"**Tâm lý retail (voz Điểm báo):** {_SENTIMENT_ICON.get(sig, sig)} · "
            f"net {macro.get('net', 0):+d} · {macro.get('n', 0)} tin _(chỉ báo tâm lý, không phải headline)_"]
     market = macro.get("market") or []
     if market:
-        out.append("")
-        out.append("**Tin thị trường (CafeF):**")
-        for title, date in market:
-            tag = f"`{date}` " if date else ""
-            out.append(f"- {tag}{_clip(title, title_width)}")
+        out += ["", "**Tin thị trường (CafeF):**"]
+        for m in market:
+            out.append(f"- {_date_anchor(m.get('date', ''), m.get('link', ''))}{_clip(m.get('title', ''), title_width)}")
     return "\n".join(out)
 
 
-def render_symbol_news(news_map: dict, per: int = 3, title_width: int = 74) -> str:
-    """Block per-symbol: tiêu đề tâm lý + tối đa `per` headline (ngày · nguồn)."""
+def render_symbol_news(news_map: dict, per: int = 4, title_width: int = 78, summary_width: int = 100) -> str:
+    """Block per-symbol: tâm lý + ≤`per` headline ([ngày](link) tiêu đề · nguồn) + trích 1 dòng summary."""
     if not news_map:
         return "_Không lấy được tin per-symbol._"
     blocks = []
@@ -249,15 +254,44 @@ def render_symbol_news(news_map: dict, per: int = 3, title_width: int = 74) -> s
             blocks.append(head + "\n- _(không có tin gần đây)_")
             continue
         lines = [head]
-        for item in latest[:per]:
-            title = item[0]
-            src = item[1] if len(item) > 1 else ""
-            date = item[2] if len(item) > 2 else ""
-            tag = f"`{date}` " if date else ""
-            suffix = f" _({src})_" if src else ""
-            lines.append(f"- {tag}{_clip(title, title_width)}{suffix}")
+        for it in latest[:per]:
+            anchor = _date_anchor(it.get("date", ""), it.get("link", ""))
+            src = f" _({it['source']})_" if it.get("source") else ""
+            lines.append(f"- {anchor}{_clip(it.get('title', ''), title_width)}{src}")
+            summ = it.get("summary") or ""
+            if summ and _w(summ) > 20:
+                lines.append(f"  _{_clip(summ, summary_width)}_")
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
+
+
+def render_portfolio(holdings: list[dict]) -> str:
+    """Danh mục đang giữ: SL / giá vốn / giá TT / giá trị / P&L / tỷ trọng (từ everyday)."""
+    good = [h for h in holdings if (h.get("marketValue") or 0) > 0]
+    if not good:
+        return "_Không lấy được danh mục hiện tại._"
+    total = sum(h.get("marketValue") or 0 for h in good)
+    total_cost = sum(h.get("costBasis") or 0 for h in good)
+    good.sort(key=lambda h: -(h.get("marketValue") or 0))
+    rows = []
+    for h in good:
+        qty = h.get("qty") or 0
+        cost = h.get("costBasis") or 0
+        mv = h.get("marketValue") or 0
+        avg = cost / qty if qty else 0
+        px = mv / qty if qty else 0
+        pnl_pct = h.get("pnlPct")
+        pnl_s = f"{pnl_pct:+.1f}%" if isinstance(pnl_pct, (int, float)) else "—"
+        w = mv / total * 100 if total else 0
+        rows.append([h.get("symbol", "?"), f"{qty:,}", _money(avg), _money(px),
+                     _money(mv), pnl_s, f"{w:.1f}%"])
+    total_pnl = total - total_cost
+    total_pnl_pct = total_pnl / total_cost * 100 if total_cost else 0
+    tbl = _box(["Mã", "SL", "Giá vốn", "Giá TT", "Giá trị", "P&L", "Tỷ trọng"],
+               rows, ["l", "r", "r", "r", "r", "r", "r"])
+    summary = (f"\n\n**Tổng:** {_money(total)} · vốn {_money(total_cost)} · "
+               f"P&L {_money(total_pnl)} ({total_pnl_pct:+.1f}%)")
+    return tbl + summary
 
 
 _GLOSSARY = [
@@ -289,6 +323,7 @@ def strip_json(plan: str) -> str:
     if not plan:
         return ""
     out = re.sub(r"```json.*?```", "", plan, flags=re.DOTALL | re.IGNORECASE)
+    out = re.sub(r"(?m)^(#{1,4}) ", r"#\1 ", out)  # demote heading LLM 1 cấp → nằm dưới mục 6
     out = re.sub(r"\n{3,}", "\n\n", out)
     return out.strip().rstrip("-").strip()
 
@@ -316,9 +351,10 @@ def render(res: dict) -> str:
 
 
 def render_daily(res: dict, triggers: list[dict], date: str,
-                 macro: dict | None = None, news_map: dict | None = None) -> str:
-    """Báo cáo NGÀY (markdown): vĩ mô + cảnh báo + quyết định/giải ngân + tin từng mã
-    + xếp hạng cả rổ + phân tích chi tiết. Layout deterministic, render đẹp mọi viewer .md."""
+                 macro: dict | None = None, news_map: dict | None = None,
+                 holdings: list[dict] | None = None) -> str:
+    """Báo cáo NGÀY (markdown): vĩ mô + danh mục + cảnh báo + quyết định/giải ngân + tin
+    từng mã + xếp hạng cả rổ + phân tích. Layout deterministic, render đẹp mọi viewer .md."""
     if "error" in res:
         return f"Lỗi daily: {res['error']}"
     table, verdict = _action_block(res)
@@ -327,11 +363,19 @@ def render_daily(res: dict, triggers: list[dict], date: str,
            f"**Nguồn:** {res.get('mode', '?')} · **Ngân sách:** {budget}", ""]
     if macro:
         out += [render_macro(macro), ""]
-    out += ["## 1. Cảnh báo danh mục", render_triggers(triggers), "",
-            "## 2. Quyết định & giải ngân", f"**{verdict}**", "", table, ""]
-    if news_map:
-        out += ["## 3. Tin tức từng mã", render_symbol_news(news_map), ""]
-    out += ["## 4. Xếp hạng cả rổ (rule-based)", render_ranking(res.get("ranking", []))]
+    if holdings:
+        out += ["## 1. Danh mục hiện tại", render_portfolio(holdings), "",
+                "## 2. Cảnh báo danh mục", render_triggers(triggers), "",
+                "## 3. Quyết định & giải ngân", f"**{verdict}**", "", table, ""]
+        if news_map:
+            out += ["## 4. Tin tức từng mã", render_symbol_news(news_map), ""]
+        out += ["## 5. Xếp hạng cả rổ (rule-based)", render_ranking(res.get("ranking", []))]
+    else:
+        out += ["## 1. Cảnh báo danh mục", render_triggers(triggers), "",
+                "## 2. Quyết định & giải ngân", f"**{verdict}**", "", table, ""]
+        if news_map:
+            out += ["## 3. Tin tức từng mã", render_symbol_news(news_map), ""]
+        out += ["## 4. Xếp hạng cả rổ (rule-based)", render_ranking(res.get("ranking", []))]
     if res.get("errors"):
         out += ["", "_Mã lỗi dữ liệu (bỏ qua): " + ", ".join(res["errors"][:8]) + "_"]
     return "\n".join(out)

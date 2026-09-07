@@ -198,13 +198,19 @@ def cmd_daily(a):
     news_syms = list(dict.fromkeys(held_syms + [s for s in res.get("shortlist", []) if s not in held_syms]))
     macro = news_digest.macro_digest()
     news_map = news_digest.symbols_news(news_syms)
+    try:
+        holdings = pf.fetch_holdings(a.asset_class) if not a.holdings else None
+    except pf.PortfolioError:
+        holdings = None
 
     if str(res.get("mode", "")).startswith("fallback"):
         print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
         print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
     date = f"{datetime.datetime.now():%Y-%m-%d}"
-    report = (decision_table.render_daily(res, triggers, date, macro=macro, news_map=news_map)
-              + "\n\n## 5. Phân tích chi tiết (TCBS real-time)\n\n"
+    detail_no = 6 if holdings else 5
+    report = (decision_table.render_daily(res, triggers, date, macro=macro, news_map=news_map,
+                                          holdings=holdings)
+              + f"\n\n## {detail_no}. Phân tích chi tiết (TCBS real-time)\n\n"
               + decision_table.strip_json(res["plan"])
               + "\n\n" + decision_table.render_glossary())
     print("\n" + report)

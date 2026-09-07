@@ -46,12 +46,13 @@ def macro_digest(voz_limit: int = 3, market_limit: int = 5) -> dict:
     return {
         "signal": s["signal"], "net": s["net"], "n": s["n"],
         "voz_titles": [n["title"] for n in voz[:voz_limit]],
-        "market": [(n["title"], _short_date(n.get("published", ""))) for n in cafef[:market_limit]],
+        "market": [{"title": n["title"], "date": _short_date(n.get("published", "")),
+                    "link": n.get("link", "")} for n in cafef[:market_limit]],
     }
 
 
-def symbols_news(symbols: list[str], per: int = 3, use_vnstock: bool = True) -> dict:
-    """{SYM: {signal, net, n, latest:[(title, source, date)]}} — feed RSS fetch 1 lần, lọc per-symbol."""
+def symbols_news(symbols: list[str], per: int = 4, use_vnstock: bool = True) -> dict:
+    """{SYM: {signal, net, n, latest:[{title, source, date, link, summary}]}} — feed fetch 1 lần, lọc per-symbol."""
     try:
         feeds = vn_news.fetch_cafef() + vn_news.fetch_voz()
     except Exception:
@@ -69,6 +70,9 @@ def symbols_news(symbols: list[str], per: int = 3, use_vnstock: bool = True) -> 
         items = _dedup(hit)
         sc = vn_news.score_sentiment(items)
         out[s] = {"signal": sc["signal"], "net": sc["net"], "n": sc["n"],
-                  "latest": [(n["title"], n.get("source", ""), _short_date(n.get("published", "")))
+                  "latest": [{"title": n["title"], "source": n.get("source", ""),
+                              "date": _short_date(n.get("published", "")),
+                              "link": n.get("link", ""),
+                              "summary": (n.get("summary") or "").strip()}
                              for n in items[:per]]}
     return out
