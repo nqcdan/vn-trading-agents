@@ -24,12 +24,13 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 
 ### Đọc output — vĩ mô + 5 mục
 
-- **Đầu trang** — tâm lý vĩ mô voz (tích cực/tiêu cực + net + vài headline nóng).
+- **Đầu trang** — tâm lý retail voz (net, chỉ báo tâm lý) + **tin thị trường CafeF** (5 headline mới nhất, có ngày).
 - **`## 1. Cảnh báo danh mục`** — mã đang giữ bị trigger (RSI≥70 / tập trung >25% NAV / SELL / thủng SMA50 / tin xấu). Không có → "danh mục ổn".
 - **`## 2. Quyết định & giải ngân`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN, kèm bán nếu có) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ.
-- **`## 3. Tin tức từng mã`** — bảng tâm lý (🟢/🔴/⚪ + net) + số tin + headline gần nhất cho mã đang giữ và ứng viên.
+- **`## 3. Tin tức từng mã`** — mỗi mã (đang giữ + ứng viên): tâm lý (🟢/🔴/⚪ + net) + tối đa 3 headline gần nhất kèm ngày & nguồn (CafeF/vnstock).
 - **`## 4. Xếp hạng cả rổ`** — toàn rổ xếp theo tín hiệu (BUY→SELL), rule-based, soi cơ hội ngoài danh mục.
 - **`## 5. Phân tích chi tiết`** — diễn giải sâu từng mã theo TCBS real-time: rating 7 chiều, khối ngoại, đồng thuận CTCK, điểm vào chia lệnh, rủi ro theo dõi.
+- **`## Giải nghĩa thuật ngữ`** (cuối) — NAV, P/E, P/B, ROE, RSI, SMA50, golden/death cross, khối ngoại, YoY, T+2… cho người mới.
 
 ### Ví dụ output (rút gọn)
 

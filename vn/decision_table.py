@@ -218,32 +218,70 @@ def render_triggers(triggers: list[dict]) -> str:
 _SENTIMENT_ICON = {"BULLISH": "🟢 tích cực", "BEARISH": "🔴 tiêu cực", "NEUTRAL": "⚪ trung tính"}
 
 
-def render_macro(macro: dict) -> str:
+_ICON = {"BULLISH": "🟢", "BEARISH": "🔴", "NEUTRAL": "⚪"}
+
+
+def render_macro(macro: dict, title_width: int = 74) -> str:
     sig = macro.get("signal", "NEUTRAL")
-    head = f"**Tâm lý vĩ mô (voz Điểm báo):** {_SENTIMENT_ICON.get(sig, sig)} · net {macro.get('net', 0):+d} · {macro.get('n', 0)} tin"
-    titles = macro.get("titles") or []
-    if not titles:
-        return head
-    return head + "\n" + "\n".join(f"> {t}" for t in titles)
+    out = [f"**Tâm lý retail (voz Điểm báo):** {_SENTIMENT_ICON.get(sig, sig)} · "
+           f"net {macro.get('net', 0):+d} · {macro.get('n', 0)} tin _(chỉ báo tâm lý, không phải headline)_"]
+    market = macro.get("market") or []
+    if market:
+        out.append("")
+        out.append("**Tin thị trường (CafeF):**")
+        for title, date in market:
+            tag = f"`{date}` " if date else ""
+            out.append(f"- {tag}{_clip(title, title_width)}")
+    return "\n".join(out)
 
 
-def render_symbol_news(news_map: dict, title_width: int = 60) -> str:
+def render_symbol_news(news_map: dict, per: int = 3, title_width: int = 74) -> str:
+    """Block per-symbol: tiêu đề tâm lý + tối đa `per` headline (ngày · nguồn)."""
     if not news_map:
         return "_Không lấy được tin per-symbol._"
-    rows = []
+    blocks = []
     for sym, d in news_map.items():
-        sig = d.get("signal", "NEUTRAL")
-        icon = {"BULLISH": "🟢", "BEARISH": "🔴", "NEUTRAL": "⚪"}.get(sig, "⚪")
-        senti = f"{icon} {d.get('net', 0):+d}" if d.get("n") else "—"
+        icon = _ICON.get(d.get("signal", "NEUTRAL"), "⚪")
+        senti = f"{icon} net {d.get('net', 0):+d}" if d.get("n") else "⚪ chưa có tin"
+        head = f"**{sym}** — {senti} · {d.get('n', 0)} tin"
         latest = d.get("latest") or []
-        if latest:
-            headline = latest[0][0]
-            src = latest[0][1]
-            head = _clip(headline, title_width) + (f" ({src})" if src else "")
-        else:
-            head = "—"
-        rows.append([sym, senti, str(d.get("n", 0)), head])
-    return _box(["Mã", "Tâm lý", "#tin", "Tin gần nhất"], rows, ["l", "r", "r", "l"])
+        if not latest:
+            blocks.append(head + "\n- _(không có tin gần đây)_")
+            continue
+        lines = [head]
+        for item in latest[:per]:
+            title = item[0]
+            src = item[1] if len(item) > 1 else ""
+            date = item[2] if len(item) > 2 else ""
+            tag = f"`{date}` " if date else ""
+            suffix = f" _({src})_" if src else ""
+            lines.append(f"- {tag}{_clip(title, title_width)}{suffix}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
+
+
+_GLOSSARY = [
+    ("NAV / tỷ trọng", "NAV = tổng giá trị danh mục. Tỷ trọng = mã đó chiếm mấy % NAV. Dồn 1 mã quá nhiều = **tập trung**, rủi ro cao."),
+    ("Lô", "Đơn vị mua tối thiểu ở VN = 100 cổ phiếu. '6 lô' = 600 cp. Không mua lẻ."),
+    ("P/E", "Giá / lợi nhuận mỗi cổ. Thấp thường là 'rẻ', cao là 'đắt' (so trong cùng ngành)."),
+    ("P/B", "Giá / giá trị sổ sách. <1 = dưới giá trị sổ sách; cao (vd >3) = thị trường trả giá đắt cho tài sản."),
+    ("ROE", "Lợi nhuận / vốn chủ sở hữu — công ty sinh lời hiệu quả cỡ nào trên vốn. Cao thường tốt."),
+    ("RSI", "Thước đo 0–100 'nóng/nguội'. ≥70 = mua quá nhiều, dễ điều chỉnh giảm (tránh mua đuổi). ~50–65 = bình thường."),
+    ("SMA50", "Giá trung bình 50 phiên gần nhất. Giá 'thủng SMA50' (rớt xuống dưới) thường là dấu hiệu yếu đi."),
+    ("Golden / death cross", "Golden = đường MA ngắn cắt LÊN trên MA dài (tín hiệu tăng); death = cắt XUỐNG (tín hiệu giảm)."),
+    ("Khối ngoại", "Nhà đầu tư nước ngoài. 'Mua ròng' = mua nhiều hơn bán (dòng tiền vào, thường tích cực); 'bán ròng' = ngược lại."),
+    ("YoY", "Year-over-Year — so với cùng kỳ năm trước. 'LNST +28% YoY' = lợi nhuận sau thuế tăng 28% so với năm ngoái."),
+    ("net (tâm lý tin)", "Điểm tin tích cực trừ tiêu cực. net dương = tin tốt trội; âm = tin xấu trội."),
+    ("T+2 / phí round-trip", "Bán xong ~2 phiên tiền/cổ mới về (T+2). Một vòng mua-bán mất ~0.5% (phí+thuế+trượt giá) → chỉ xoay khi lợi thế rõ hơn mức đó."),
+    ("Giải ngân / pha loãng / rotate", "Giải ngân = đem tiền rảnh đi mua. Pha loãng = mua thêm mã khác để tỷ trọng mã đang quá lớn tự giảm. Rotate = bán mã này mua mã khác tốt hơn."),
+]
+
+
+def render_glossary() -> str:
+    out = ["## Giải nghĩa thuật ngữ"]
+    for term, desc in _GLOSSARY:
+        out.append(f"- **{term}** — {desc}")
+    return "\n".join(out)
 
 
 def strip_json(plan: str) -> str:

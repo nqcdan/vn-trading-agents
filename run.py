@@ -205,7 +205,8 @@ def cmd_daily(a):
     date = f"{datetime.datetime.now():%Y-%m-%d}"
     report = (decision_table.render_daily(res, triggers, date, macro=macro, news_map=news_map)
               + "\n\n## 5. Phân tích chi tiết (TCBS real-time)\n\n"
-              + decision_table.strip_json(res["plan"]))
+              + decision_table.strip_json(res["plan"])
+              + "\n\n" + decision_table.render_glossary())
     print("\n" + report)
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
     saved = journal.record("daily", {**res, "triggers": triggers, "macro_digest": macro,
