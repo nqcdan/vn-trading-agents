@@ -10,65 +10,69 @@ Chạy từ thư mục `~/dev/vn-trading-agents`. Điều kiện: đã cài đ�
 
 ## 1. Hàng ngày — cuối phiên (sau ~15:00)
 
-Chạy 1 lệnh, ra bảng quyết định đầy đủ: mã nào mua / bán / giữ, đợt này nên giải ngân hay hold tiền.
+Chạy **1 lệnh duy nhất** → 1 báo cáo ngày gộp cảnh báo + quyết định mua/bán/giữ + xếp hạng cả rổ + phân tích chi tiết:
 
-.venv/bin/python run.py advise --group VN30 --require-mcp
+.venv/bin/python run.py daily --group VN30 --require-mcp
 
 Nếu hay bị timeout (sonnet nặng), chạy model nhanh:
 
-VN_LLM_MODEL=haiku .venv/bin/python run.py advise --group VN30 --require-mcp
+VN_LLM_MODEL=haiku .venv/bin/python run.py daily --group VN30 --require-mcp
 
-`--require-mcp` bắt buộc dùng dữ liệu TCBS real-time (rating 7 chiều + khối ngoại ròng + đồng thuận CTCK). Nếu TCBS chưa đăng nhập / quá hạn, lệnh **báo lỗi** thay vì âm thầm chạy rule-based → đăng nhập lại (mục 5) rồi chạy lại. Bỏ `--require-mcp` nếu chấp nhận fallback text-mode (kém chính xác, có banner cảnh báo).
+`daily` gộp 3 việc cũ (watch + recommend + advise) vào 1 lần gọi LLM. `--require-mcp` bắt buộc dữ liệu TCBS real-time (rating 7 chiều + khối ngoại ròng + đồng thuận CTCK); nếu TCBS chưa đăng nhập / quá hạn, lệnh **báo lỗi** thay vì âm thầm chạy rule-based → đăng nhập lại (mục 5) rồi chạy lại. Bỏ `--require-mcp` nếu chấp nhận fallback text-mode (kém chính xác, có banner cảnh báo).
 
-Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, không nhập tay.
+Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, không nhập tay. Báo cáo tự lưu vào `reports/journal/{ngày}-daily.md` — tên **cố định theo ngày**, chạy lại trong ngày thì ghi đè.
 
-### Đọc output — 5 khối từ trên xuống
+### Đọc output — 4 khối
 
-1. **Dòng `===`** — rổ, nguồn dữ liệu (`tcbs-mcp` = TCBS thật; `fallback-…` = rule-based), vĩ mô voz, ngân sách.
-2. **Dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY`** — chốt nhanh: giải ngân bao nhiêu (mấy %) hay HOLD TIỀN. Đây là câu trả lời "đợt này nên xuống tiền hay đứng ngoài".
-3. **Bảng hành động** — mỗi mã: Hành động (MUA MỚI / GOM THÊM / GIỮ / BÁN) · Lô · Tiền · % ngân sách · lý do. `◆` = mã đang giữ (kèm tỷ trọng).
-4. **Bảng chỉ số** — Giá / RSI / P·E / P·B / ROE rule-based từng mã (số nền tảng để tự đối chiếu).
-5. **Phân tích chi tiết** — diễn giải sâu từng mã theo TCBS real-time: rating, khối ngoại, đồng thuận CTCK, giá mục tiêu, điểm vào chia lệnh.
+1. **`## 1. CẢNH BÁO DANH MỤC`** — mã đang giữ bị trigger (RSI≥70 / tập trung >25% NAV / SELL / thủng SMA50 / tin xấu). Không có → "danh mục ổn".
+2. **`## 2. QUYẾT ĐỊNH & GIẢI NGÂN`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ.
+3. **`## 3. XẾP HẠNG CẢ RỔ`** — toàn bộ rổ xếp theo tín hiệu (BUY→SELL), rule-based, để soi cơ hội ngoài danh mục.
+4. **`## 4. PHÂN TÍCH CHI TIẾT`** — diễn giải sâu từng mã theo TCBS real-time: rating, khối ngoại, đồng thuận CTCK, điểm vào chia lệnh.
 
 ### Ví dụ output (rút gọn)
 
 ```
-=== Kế hoạch VN30 | nguồn: tcbs-mcp | vĩ mô voz: BULLISH (net 4) | ngân sách: 122,7tr ===
+=== BÁO CÁO NGÀY 2026-09-07 — VN30 | nguồn: tcbs-mcp | vĩ mô voz: BULLISH (net 4) | ngân sách: 122,7tr ===
 
+## 1. CẢNH BÁO DANH MỤC
+• FPT: tỷ trọng 68.2% > 25.0% NAV (tập trung)
+• HAH: thủng SMA50 (close 47.2 < sma50 47.28); tin xấu mới (net -2, 8 tin)
+
+## 2. QUYẾT ĐỊNH & GIẢI NGÂN
 ▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN 84,5tr (69%) · giữ lại 38,2tr (31%) — giải ngân phần lớn.
 
 ┌──────────┬───────────┬────┬────────┬───────┬──────────────────────────────────┐
 │ Mã       │ Hành động │ Lô │   Tiền │  % NS │ Tín hiệu / Lý do                 │
 ├──────────┼───────────┼────┼────────┼───────┼──────────────────────────────────┤
 │ HDB      │ MUA MỚI   │  8 │ 21,8tr │ 17.7% │ NH mid-cap, P/E 7.1, ROE 25.8%   │
-│ SSI      │ MUA MỚI   │  2 │  4,2tr │  3.4% │ rsRank 83 momentum, ROE thấp     │
 │ FPT ◆68% │ GOM THÊM  │  5 │ 36,4tr │ 29.7% │ khối ngoại MUA +960k, rating 3/5 │
-│ MBB ◆11% │ GOM THÊM  │  7 │ 14,4tr │ 11.7% │ P/E 6.9 rẻ nhất NH, cổ tức 4.9%  │
 │ VNM ◆10% │ GIỮ       │  — │      — │     — │ RSI 54 · P/E 11.8 · ROE 34%      │
-│ HPG ◆4%  │ GIỮ       │  — │      — │     — │ RSI 48 · P/E 7.9 · ROE 18%       │
 └──────────┴───────────┴────┴────────┴───────┴──────────────────────────────────┘
 
-Chỉ số chi tiết (rule-based vnstock — TCBS real-time xem phần phân tích dưới):
-┌─────┬─────┬─────┬──────┬─────┬─────┬──────┐
-│ Mã  │ Giá │ RSI │  P/E │ P/B │ ROE │ Rule │
-├─────┼─────┼─────┼──────┼─────┼─────┼──────┤
-│ FPT │ 73k │  59 │ 12.5 │ 3.1 │ 27% │ BUY  │
-│ …   │     │     │      │     │     │      │
-└─────┴─────┴─────┴──────┴─────┴─────┴──────┘
+## 3. XẾP HẠNG CẢ RỔ (rule-based)
+┌──────────┬──────────┬─────┬──────┬─────┬─────┬─────────────┐
+│ Mã       │ Tín hiệu │ RSI │  P/E │ P/B │ ROE │ Khuyến nghị │
+├──────────┼──────────┼─────┼──────┼─────┼─────┼─────────────┤
+│ MBB ◆11% │ BUY      │  52 │  7.6 │ 1.4 │ 19% │ GOM THÊM    │
+│ …        │          │     │      │     │     │             │
+└──────────┴──────────┴─────┴──────┴─────┴─────┴─────────────┘
 
---- Phân tích chi tiết từng mã (LLM/TCBS) ---
+## 4. PHÂN TÍCH CHI TIẾT (LLM/TCBS)
 ### FPT — GOM THÊM … (khối ngoại mua ròng, rating, điểm vào chia lệnh…)
 …
 [LLM: 1 spawn, 124s]
+→ báo cáo: reports/journal/2026-09-07-daily.md
 ```
 
 **Việc của bạn:** máy chỉ *gợi ý*. Muốn làm theo thì tự vào app chứng khoán đặt lệnh tay — không có gì tự đặt lệnh thật.
 
-### Quét nhanh im lặng (tuỳ chọn)
+### Các lệnh lẻ (khi cần, không bắt buộc chạy hàng ngày)
 
-Chỉ muốn biết "có gì bất thường không" mà không cần bảng đầy đủ → máy quét EOD im lặng khi danh mục ổn, chỉ lên tiếng khi có trigger (RSI cao / tập trung / thủng SMA50 / tin xấu) hoặc đủ tiền mua 1 lô:
+`daily` đã gộp cả 3, nhưng vẫn chạy riêng được nếu muốn:
 
-.venv/bin/python run.py watch --group VN30
+.venv/bin/python run.py watch --group VN30       # chỉ quét cảnh báo, im lặng khi ổn
+.venv/bin/python run.py recommend --group VN30   # chỉ xếp hạng cả rổ
+.venv/bin/python run.py advise --group VN30 --require-mcp   # chỉ kế hoạch giải ngân
 
 ### Giải nghĩa từ ngữ trong output
 
@@ -147,7 +151,7 @@ Kiểm tra kết nối tới danh mục thật:
 
 ## Tóm tắt nhịp
 
-- Cuối mỗi phiên: `advise --group VN30 --require-mcp` — bảng quyết định mua/bán/giữ + giải ngân hay hold. (`watch` = quét nhanh im lặng khi chỉ muốn biết có bất thường không.)
-- Mỗi tuần: `recommend` + `paper mark`.
-- Mỗi tháng: rà `advise` kỹ + `paper score`.
+- Cuối mỗi phiên: `daily --group VN30 --require-mcp` — 1 báo cáo gộp cảnh báo + quyết định mua/bán/giữ + xếp hạng cả rổ. Lưu `{ngày}-daily.md`, chạy lại ghi đè.
+- Mỗi tuần: `paper mark` (định giá lại sổ paper).
+- Mỗi tháng: `paper score` (chấm điểm agent vs giữ-nguyên vs VNINDEX).
 - Khi bơm/rút vốn thật: `paper cash` cho khớp sổ.

@@ -7,6 +7,7 @@ Ví dụ:
 """
 from __future__ import annotations
 import argparse
+import datetime
 import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
@@ -166,6 +167,41 @@ def cmd_advise(a):
         print(f"\n(rate-limit bỏ qua: {', '.join(e.split(':')[0] for e in res['errors'])})")
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
     saved = journal.record("advise", {**res, "cost": snap}, summary_md=report)
+    if saved:
+        print(f"→ báo cáo: {saved[:-5]}.md")
+    if a.json:
+        _print(res)
+
+
+def cmd_daily(a):
+    """Gộp 1+2+3: cảnh báo (watch) + quyết định/giải ngân (advise) + xếp hạng cả rổ (recommend)
+    → 1 báo cáo ngày `{date}-daily.md`. Chạy 1 lần advise (đã gồm ranking cả rổ), phủ thêm
+    trigger rule-based trên chính dữ liệu ranking (chỉ thêm quét SMA50/tin xấu cho mã đang giữ)."""
+    extra = [s for s in (a.extra or "").split(",") if s.strip()]
+    cash_wallet = tuple(s.strip() for s in a.cash_wallet.split(",")) if a.cash_wallet else None
+    agents.cost_reset()
+    res = adv.advise(a.group, holdings_csv=a.holdings, asset_class=a.asset_class,
+                     cash=a.cash, throttle=a.throttle, llm_top=0,
+                     use_mcp=not a.no_mcp, extra=extra, cash_wallet=cash_wallet,
+                     require_mcp=a.require_mcp)
+    snap = agents.cost_snapshot()
+    if "error" in res:
+        print(f"Lỗi: {res['error']}")
+        return
+    positions = [{"symbol": r["symbol"], "weight_pct": r.get("weight_pct"),
+                  "analysis": {"rsi14": r.get("rsi"), "signal": r.get("signal")}}
+                 for r in res.get("ranking", []) if r.get("held") and "error" not in r]
+    triggers = watch_mod._scan_triggers(positions, a.throttle)
+
+    if str(res.get("mode", "")).startswith("fallback"):
+        print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
+        print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
+    date = f"{datetime.datetime.now():%Y-%m-%d}"
+    report = (decision_table.render_daily(res, triggers, date)
+              + "\n\n## 4. PHÂN TÍCH CHI TIẾT (LLM/TCBS)\n\n" + res["plan"])
+    print("\n" + report)
+    print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+    saved = journal.record("daily", {**res, "triggers": triggers, "cost": snap}, summary_md=report)
     if saved:
         print(f"→ báo cáo: {saved[:-5]}.md")
     if a.json:
@@ -368,6 +404,20 @@ def main():
     pd.add_argument("--throttle", type=float, default=2.2)
     pd.add_argument("--json", action="store_true")
     pd.set_defaults(func=cmd_advise)
+
+    pdl = sub.add_parser("daily", help="BÁO CÁO NGÀY gộp: cảnh báo + quyết định/giải ngân + xếp hạng cả rổ → 1 report")
+    pdl.add_argument("--group", default="VN30", help="rổ quét")
+    pdl.add_argument("--holdings", default=None, help="'FPT:75,MBB:12' (không có → everyday API)")
+    pdl.add_argument("--asset-class", default="vn_stock")
+    pdl.add_argument("--cash", default=None, help="tiền mới (ghi đè; mặc định = ví bank realtime)")
+    pdl.add_argument("--cash-wallet", default=None, help="ngân sách = số dư ví everyday, vd 'bank'")
+    pdl.add_argument("--no-mcp", action="store_true", help="tắt TCBS MCP, dùng text-mode")
+    pdl.add_argument("--require-mcp", action="store_true",
+                     help="bắt lỗi nếu TCBS MCP không dùng được (khuyến nghị cho báo cáo ngày)")
+    pdl.add_argument("--extra", default=None, help="ép thêm mã vào shortlist, vd 'GMD,VNM'")
+    pdl.add_argument("--throttle", type=float, default=2.2)
+    pdl.add_argument("--json", action="store_true")
+    pdl.set_defaults(func=cmd_daily)
 
     pw = sub.add_parser("watch", help="máy quét EOD: im lặng khi không có việc, đề xuất rotate/giải ngân")
     pw.add_argument("--asset-class", default="vn_stock", help="vn_stock | vn_fund | crypto")
