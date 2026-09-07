@@ -10,7 +10,7 @@ import argparse
 import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
-                tcbs as tcbs_mcp, watch as watch_mod, journal, paper)
+                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table)
 
 
 def _print(obj):
@@ -158,8 +158,8 @@ def cmd_advise(a):
     if str(res.get("mode", "")).startswith("fallback"):
         print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
         print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
-    print(f"\n=== Kế hoạch tháng | rổ {res['group']} | nguồn: {res.get('mode')} "
-          f"| vĩ mô voz: {m['signal']} (net {m['net']}) ===\n")
+    print("\n" + decision_table.render(res))
+    print("\n--- Phân tích chi tiết từng mã (LLM/TCBS) ---\n")
     print(res["plan"])
     if res.get("errors"):
         print(f"\n(rate-limit bỏ qua: {', '.join(e.split(':')[0] for e in res['errors'])})")

@@ -183,7 +183,9 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
         plan, mode = _text_fallback("text")
 
     plan = plan.strip()
+    budget = float(cash_info["total"]) if cash_info and cash_info.get("total") is not None else None
     return {"group": group, "macro": macro, "mode": mode, "ranking_lines": lines,
-            "cash_txt": cash_txt, "cash_info": cash_info,
+            "ranking": r["ranking"], "shortlist": sorted(keep),
+            "cash_txt": cash_txt, "cash_info": cash_info, "budget": budget,
             "errors": r["errors"], "plan": plan,
             "actions": actions.parse_actions(plan)}

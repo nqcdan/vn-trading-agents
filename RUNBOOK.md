@@ -1,7 +1,7 @@
 ---
 title: Runbook vận hành vn-trading-agents
 scope: sử dụng hàng ngày — quét EOD, kế hoạch tháng, paper-trade
-updated: 2026-08-31
+updated: 2026-09-07
 ---
 
 # Runbook vận hành vn-trading-agents
@@ -10,72 +10,65 @@ Chạy từ thư mục `~/dev/vn-trading-agents`. Điều kiện: đã cài đ�
 
 ## 1. Hàng ngày — cuối phiên (sau ~15:00)
 
-Quét danh mục cuối ngày. Máy tự im lặng khi không có gì đáng làm; chỉ lên tiếng khi cần.
+Chạy 1 lệnh, ra bảng quyết định đầy đủ: mã nào mua / bán / giữ, đợt này nên giải ngân hay hold tiền.
 
-.venv/bin/python run.py watch --group VN30
+.venv/bin/python run.py advise --group VN30 --require-mcp
 
-**Về dữ liệu:** lệnh này chỉ đạt chất lượng cao nhất khi TCBS MCP đăng nhập còn hiệu lực. Trong phiên headless (`run.py`), token TCBS thường KHÔNG kết nối → dù header in `nguồn: mcp`, thực chất mô hình chạy **rule-based** (RSI, score, P/E, P/B, ROE có sẵn), không có rating/đồng thuận CTCK/khối ngoại real-time. Dấu hiệu: trong phần đề xuất có dòng "Server TCBS chưa kết nối". Muốn dữ liệu thật → đăng nhập lại TCBS (mục 5) ngay trước khi chạy.
+Nếu hay bị timeout (sonnet nặng), chạy model nhanh:
 
-Việc quét trigger (RSI cao / tập trung / thủng SMA50 / tin xấu) và kiểm tiền rảnh **luôn là rule-based**, chạy được không cần TCBS.
+VN_LLM_MODEL=haiku .venv/bin/python run.py advise --group VN30 --require-mcp
 
-Đọc kết quả:
-- Báo "không có tín hiệu" → danh mục ổn, không có tiền rảnh đáng kể. Đóng máy, không làm gì.
-- Có đề xuất GIỮ / GIẢM / BÁN kèm mã rotate hoặc giải ngân → xem lý do từng mã, rồi tự quyết có đặt lệnh hay không.
-- Nếu đề xuất có dòng "Server TCBS chưa kết nối" (hoặc banner "TCBS không dùng được") → đang là rule-based, thiếu real-time; đăng nhập lại (mục 5) rồi chạy lại nếu cần chắc.
+`--require-mcp` bắt buộc dùng dữ liệu TCBS real-time (rating 7 chiều + khối ngoại ròng + đồng thuận CTCK). Nếu TCBS chưa đăng nhập / quá hạn, lệnh **báo lỗi** thay vì âm thầm chạy rule-based → đăng nhập lại (mục 5) rồi chạy lại. Bỏ `--require-mcp` nếu chấp nhận fallback text-mode (kém chính xác, có banner cảnh báo).
 
-### Ví dụ output thật (rút gọn)
+Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, không nhập tay.
 
-````
-=== Watch EOD | rổ VN30 | nguồn: fallback-mcp-offline (rule-based, TCBS ngắt) ===
-• FPT: tỷ trọng 75.3% > 25.0% NAV (tập trung)
-• HPG: thủng SMA50 (close 22.1 < sma50 22.16)
+### Đọc output — 5 khối từ trên xuống
 
-TCBS server chưa kết nối được sau 3 lần thử — phân tích dựa trên dữ liệu trong prompt.
+1. **Dòng `===`** — rổ, nguồn dữ liệu (`tcbs-mcp` = TCBS thật; `fallback-…` = rule-based), vĩ mô voz, ngân sách.
+2. **Dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY`** — chốt nhanh: giải ngân bao nhiêu (mấy %) hay HOLD TIỀN. Đây là câu trả lời "đợt này nên xuống tiền hay đứng ngoài".
+3. **Bảng hành động** — mỗi mã: Hành động (MUA MỚI / GOM THÊM / GIỮ / BÁN) · Lô · Tiền · % ngân sách · lý do. `◆` = mã đang giữ (kèm tỷ trọng).
+4. **Bảng chỉ số** — Giá / RSI / P·E / P·B / ROE rule-based từng mã (số nền tảng để tự đối chiếu).
+5. **Phân tích chi tiết** — diễn giải sâu từng mã theo TCBS real-time: rating, khối ngoại, đồng thuận CTCK, giá mục tiêu, điểm vào chia lệnh.
 
-### FPT — tỷ trọng 75.3% (ngưỡng cảnh báo >25%)
-Vấn đề: gần như toàn bộ dồn vào 1 mã, rủi ro tập trung cao.
-Không bán hôm nay; mua HDB bằng tiền rảnh sẽ pha loãng FPT 75.3% → ~42.8%.
-Khuyến nghị: GIỮ FPT + pha loãng bằng tiền mới.
+### Ví dụ output (rút gọn)
 
-### HPG — thủng SMA50 (22.1 < 22.16)
-Mức thủng ~0.3% (rất nhẹ), tỷ trọng chỉ 4.2%. Xoay đi tốn ~0.5% phí, không đủ lời.
-Kết luận: GIỮ HPG.
+```
+=== Kế hoạch VN30 | nguồn: tcbs-mcp | vĩ mô voz: BULLISH (net 4) | ngân sách: 122,7tr ===
 
-## Tiền rảnh 44,577,682 VND → Mua HDB
-Score=4 (cao nhất), P/E=9.7 (rẻ), ROE=18%, RSI=61.3 (chưa nóng), ngành ngân hàng.
-Giá HDB 27,800đ/cp → 1 lô=2,780,000đ → mua 16 lô (1.600 cp) = 44,480,000đ, dư 97,682đ.
+▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN 84,5tr (69%) · giữ lại 38,2tr (31%) — giải ngân phần lớn.
 
-## Tóm tắt hành động
-| Mã | Hành động | Lý do |
-| FPT | GIỮ | pha loãng tự nhiên khi mua HDB, thiếu biên bán hôm nay |
-| HPG | GIỮ | thủng SMA50 chỉ 0.3%, không đủ biên xoay |
-| HDB | MUA 16 lô | score cao nhất, P/E rẻ, RSI an toàn |
+┌──────────┬───────────┬────┬────────┬───────┬──────────────────────────────────┐
+│ Mã       │ Hành động │ Lô │   Tiền │  % NS │ Tín hiệu / Lý do                 │
+├──────────┼───────────┼────┼────────┼───────┼──────────────────────────────────┤
+│ HDB      │ MUA MỚI   │  8 │ 21,8tr │ 17.7% │ NH mid-cap, P/E 7.1, ROE 25.8%   │
+│ SSI      │ MUA MỚI   │  2 │  4,2tr │  3.4% │ rsRank 83 momentum, ROE thấp     │
+│ FPT ◆68% │ GOM THÊM  │  5 │ 36,4tr │ 29.7% │ khối ngoại MUA +960k, rating 3/5 │
+│ MBB ◆11% │ GOM THÊM  │  7 │ 14,4tr │ 11.7% │ P/E 6.9 rẻ nhất NH, cổ tức 4.9%  │
+│ VNM ◆10% │ GIỮ       │  — │      — │     — │ RSI 54 · P/E 11.8 · ROE 34%      │
+│ HPG ◆4%  │ GIỮ       │  — │      — │     — │ RSI 48 · P/E 7.9 · ROE 18%       │
+└──────────┴───────────┴────┴────────┴───────┴──────────────────────────────────┘
 
-```json
-[{"action":"BUY","symbol":"HDB","lots":16,"price":27800,"reason":"..."}]
+Chỉ số chi tiết (rule-based vnstock — TCBS real-time xem phần phân tích dưới):
+┌─────┬─────┬─────┬──────┬─────┬─────┬──────┐
+│ Mã  │ Giá │ RSI │  P/E │ P/B │ ROE │ Rule │
+├─────┼─────┼─────┼──────┼─────┼─────┼──────┤
+│ FPT │ 73k │  59 │ 12.5 │ 3.1 │ 27% │ BUY  │
+│ …   │     │     │      │     │     │      │
+└─────┴─────┴─────┴──────┴─────┴─────┴──────┘
+
+--- Phân tích chi tiết từng mã (LLM/TCBS) ---
+### FPT — GOM THÊM … (khối ngoại mua ròng, rating, điểm vào chia lệnh…)
+…
+[LLM: 1 spawn, 124s]
 ```
 
-Ngân sách (ví bank realtime): 44,577,682đ
+**Việc của bạn:** máy chỉ *gợi ý*. Muốn làm theo thì tự vào app chứng khoán đặt lệnh tay — không có gì tự đặt lệnh thật.
 
-⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác...).
-[LLM: 1 spawn, 98s]
-````
+### Quét nhanh im lặng (tuỳ chọn)
 
-### Cách đọc (dành cho người mới)
+Chỉ muốn biết "có gì bất thường không" mà không cần bảng đầy đủ → máy quét EOD im lặng khi danh mục ổn, chỉ lên tiếng khi có trigger (RSI cao / tập trung / thủng SMA50 / tin xấu) hoặc đủ tiền mua 1 lô:
 
-Đọc từ trên xuống theo 5 khối:
-
-1. **Dòng `===` đầu tiên** — máy quét cái gì và bằng dữ liệu nào. `nguồn: mcp` = có dữ liệu TCBS thật; `nguồn: fallback-mcp-offline (rule-based…)` = TCBS không kết nối, chỉ dùng số liệu tự tính (kém chắc hơn).
-
-2. **Các dòng `•`** — "vì sao máy lên tiếng". Đây là các *cảnh báo tự động* (trigger). Không có dòng `•` nào thì máy im lặng. Ví dụ trên: FPT chiếm quá nhiều danh mục, và giá HPG vừa tụt dưới đường trung bình 50 ngày.
-
-3. **Phân tích từng mã** — với mỗi cảnh báo, máy giải thích và chốt GIỮ / GIẢM / BÁN. Ở đây cả hai đều **GIỮ** vì bán ra lúc này tốn phí mà lợi ích không rõ.
-
-4. **Phần "Tiền rảnh → Mua …"** — bạn đang có tiền trong ví, máy gợi ý mua mã nào, **bao nhiêu lô**, hết bao nhiêu tiền, còn dư bao nhiêu. Đây là phần hành động cụ thể nhất.
-
-5. **Bảng "Tóm tắt hành động" + khối `json`** — tóm gọn mọi việc. Khối `json` là để máy tự ghi vào *sổ tập dượt* (mục 4), bạn có thể bỏ qua khi đọc.
-
-**Việc của bạn:** máy chỉ *gợi ý*. Muốn làm theo thì bạn tự vào app chứng khoán của mình đặt lệnh tay. Không có gì tự động đặt lệnh thật.
+.venv/bin/python run.py watch --group VN30
 
 ### Giải nghĩa từ ngữ trong output
 
@@ -154,7 +147,7 @@ Kiểm tra kết nối tới danh mục thật:
 
 ## Tóm tắt nhịp
 
-- Cuối mỗi phiên: `watch` — im lặng thì thôi.
+- Cuối mỗi phiên: `advise --group VN30 --require-mcp` — bảng quyết định mua/bán/giữ + giải ngân hay hold. (`watch` = quét nhanh im lặng khi chỉ muốn biết có bất thường không.)
 - Mỗi tuần: `recommend` + `paper mark`.
-- Mỗi tháng: `advise` (rót tiền) + `paper score`.
+- Mỗi tháng: rà `advise` kỹ + `paper score`.
 - Khi bơm/rút vốn thật: `paper cash` cho khớp sổ.
