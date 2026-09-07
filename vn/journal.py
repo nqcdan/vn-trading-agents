@@ -3,6 +3,10 @@
 Ghi mỗi run thành 1 file JSON (kèm .md tuỳ chọn) dưới ``reports/journal/``
 để tra lại "tháng/tuần trước khuyên gì, ra sao". Journal hỏng không được
 làm hỏng lệnh chính → mọi lỗi IO bị nuốt, chỉ in cảnh báo.
+
+Tên file CỐ ĐỊNH theo ngày: ``{YYYY-MM-DD}-{cmd}.json`` (+ ``.md``). Chạy lại
+cùng lệnh trong ngày → GHI ĐÈ, không đẻ file mới. Timestamp lần chạy cuối vẫn
+nằm trong ``ts`` của JSON. Muốn giữ mọi lần chạy → xem git/backup thủ công.
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ def record(cmd: str, payload: dict, summary_md: str = "") -> str:
     try:
         os.makedirs(_ROOT, exist_ok=True)
         now = datetime.datetime.now()
-        stem = f"{now:%Y-%m-%d}-{now:%H%M%S}-{cmd}"
+        stem = f"{now:%Y-%m-%d}-{cmd}"  # cố định theo ngày → chạy lại ghi đè
         json_path = os.path.join(_ROOT, stem + ".json")
         rec = {"ts": now.isoformat(), "cmd": cmd, **payload}
         with open(json_path, "w", encoding="utf-8") as f:

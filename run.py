@@ -158,13 +158,16 @@ def cmd_advise(a):
     if str(res.get("mode", "")).startswith("fallback"):
         print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
         print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
-    print("\n" + decision_table.render(res))
-    print("\n--- Phân tích chi tiết từng mã (LLM/TCBS) ---\n")
-    print(res["plan"])
+    report = (decision_table.render(res)
+              + "\n\n--- Phân tích chi tiết từng mã (LLM/TCBS) ---\n\n"
+              + res["plan"])
+    print("\n" + report)
     if res.get("errors"):
         print(f"\n(rate-limit bỏ qua: {', '.join(e.split(':')[0] for e in res['errors'])})")
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
-    journal.record("advise", {**res, "cost": snap}, summary_md=res.get("plan", ""))
+    saved = journal.record("advise", {**res, "cost": snap}, summary_md=report)
+    if saved:
+        print(f"→ báo cáo: {saved[:-5]}.md")
     if a.json:
         _print(res)
 
