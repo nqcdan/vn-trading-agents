@@ -20,48 +20,51 @@ VN_LLM_MODEL=haiku .venv/bin/python run.py daily --group VN30 --require-mcp
 
 `daily` gộp 3 việc cũ (watch + recommend + advise) vào 1 lần gọi LLM. `--require-mcp` bắt buộc dữ liệu TCBS real-time (rating 7 chiều + khối ngoại ròng + đồng thuận CTCK); nếu TCBS chưa đăng nhập / quá hạn, lệnh **báo lỗi** thay vì âm thầm chạy rule-based → đăng nhập lại (mục 5) rồi chạy lại. Bỏ `--require-mcp` nếu chấp nhận fallback text-mode (kém chính xác, có banner cảnh báo).
 
-Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, không nhập tay. Báo cáo tự lưu vào `reports/journal/{ngày}-daily.md` — tên **cố định theo ngày**, chạy lại trong ngày thì ghi đè.
+Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, không nhập tay. Báo cáo là **markdown** (render đẹp trên Obsidian/VS Code/GitHub), tự lưu vào `reports/journal/{ngày}-daily.md` — tên **cố định theo ngày**, chạy lại trong ngày thì ghi đè.
 
-### Đọc output — 4 khối
+### Đọc output — vĩ mô + 5 mục
 
-1. **`## 1. CẢNH BÁO DANH MỤC`** — mã đang giữ bị trigger (RSI≥70 / tập trung >25% NAV / SELL / thủng SMA50 / tin xấu). Không có → "danh mục ổn".
-2. **`## 2. QUYẾT ĐỊNH & GIẢI NGÂN`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ.
-3. **`## 3. XẾP HẠNG CẢ RỔ`** — toàn bộ rổ xếp theo tín hiệu (BUY→SELL), rule-based, để soi cơ hội ngoài danh mục.
-4. **`## 4. PHÂN TÍCH CHI TIẾT`** — diễn giải sâu từng mã theo TCBS real-time: rating, khối ngoại, đồng thuận CTCK, điểm vào chia lệnh.
+- **Đầu trang** — tâm lý vĩ mô voz (tích cực/tiêu cực + net + vài headline nóng).
+- **`## 1. Cảnh báo danh mục`** — mã đang giữ bị trigger (RSI≥70 / tập trung >25% NAV / SELL / thủng SMA50 / tin xấu). Không có → "danh mục ổn".
+- **`## 2. Quyết định & giải ngân`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN, kèm bán nếu có) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ.
+- **`## 3. Tin tức từng mã`** — bảng tâm lý (🟢/🔴/⚪ + net) + số tin + headline gần nhất cho mã đang giữ và ứng viên.
+- **`## 4. Xếp hạng cả rổ`** — toàn rổ xếp theo tín hiệu (BUY→SELL), rule-based, soi cơ hội ngoài danh mục.
+- **`## 5. Phân tích chi tiết`** — diễn giải sâu từng mã theo TCBS real-time: rating 7 chiều, khối ngoại, đồng thuận CTCK, điểm vào chia lệnh, rủi ro theo dõi.
 
 ### Ví dụ output (rút gọn)
 
 ```
-=== BÁO CÁO NGÀY 2026-09-07 — VN30 | nguồn: tcbs-mcp | vĩ mô voz: BULLISH (net 4) | ngân sách: 122,7tr ===
+# BÁO CÁO NGÀY 2026-09-07 · rổ VN30
 
-## 1. CẢNH BÁO DANH MỤC
-• FPT: tỷ trọng 68.2% > 25.0% NAV (tập trung)
-• HAH: thủng SMA50 (close 47.2 < sma50 47.28); tin xấu mới (net -2, 8 tin)
+**Nguồn:** tcbs-mcp · **Ngân sách:** 122,7tr
 
-## 2. QUYẾT ĐỊNH & GIẢI NGÂN
-▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN 84,5tr (69%) · giữ lại 38,2tr (31%) — giải ngân phần lớn.
+**Tâm lý vĩ mô (voz Điểm báo):** 🟢 tích cực · net +4 · 20 tin
+> Vingroup lập kỷ lục vốn hóa 2 triệu tỉ đồng trên sàn chứng khoán
 
-┌──────────┬───────────┬────┬────────┬───────┬──────────────────────────────────┐
-│ Mã       │ Hành động │ Lô │   Tiền │  % NS │ Tín hiệu / Lý do                 │
-├──────────┼───────────┼────┼────────┼───────┼──────────────────────────────────┤
-│ HDB      │ MUA MỚI   │  8 │ 21,8tr │ 17.7% │ NH mid-cap, P/E 7.1, ROE 25.8%   │
-│ FPT ◆68% │ GOM THÊM  │  5 │ 36,4tr │ 29.7% │ khối ngoại MUA +960k, rating 3/5 │
-│ VNM ◆10% │ GIỮ       │  — │      — │     — │ RSI 54 · P/E 11.8 · ROE 34%      │
-└──────────┴───────────┴────┴────────┴───────┴──────────────────────────────────┘
+## 1. Cảnh báo danh mục
+- **FPT**: tỷ trọng 68.2% > 25.0% NAV (tập trung)
+- **HAH**: thủng SMA50 (close 47.2 < sma50 47.28); tin xấu mới (net -2, 8 tin)
 
-## 3. XẾP HẠNG CẢ RỔ (rule-based)
-┌──────────┬──────────┬─────┬──────┬─────┬─────┬─────────────┐
-│ Mã       │ Tín hiệu │ RSI │  P/E │ P/B │ ROE │ Khuyến nghị │
-├──────────┼──────────┼─────┼──────┼─────┼─────┼─────────────┤
-│ MBB ◆11% │ BUY      │  52 │  7.6 │ 1.4 │ 19% │ GOM THÊM    │
-│ …        │          │     │      │     │     │             │
-└──────────┴──────────┴─────┴──────┴─────┴─────┴─────────────┘
+## 2. Quyết định & giải ngân
+**▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN 34,1tr (28%) · giữ lại 88,5tr (72%) — giải ngân thăm dò. Kèm BÁN 14,6tr.**
 
-## 4. PHÂN TÍCH CHI TIẾT (LLM/TCBS)
-### FPT — GOM THÊM … (khối ngoại mua ròng, rating, điểm vào chia lệnh…)
-…
-[LLM: 1 spawn, 124s]
-→ báo cáo: reports/journal/2026-09-07-daily.md
+| Mã       | Hành động |  Lô |   Tiền |  % NS | Tín hiệu / Lý do        |
+| :------- | :-------- | --: | -----: | ----: | :---------------------- |
+| VNM ◆10% | GOM THÊM  |   3 | 18,6tr | 15.2% | ROE 34.5%, ngoại +261k  |
+| FPT ◆68% | BÁN       |   2 | 14,6tr | 11.9% | giảm tập trung 75%→55%  |
+
+## 3. Tin tức từng mã
+| Mã  | Tâm lý | #tin | Tin gần nhất                            |
+| :-- | -----: | ---: | :-------------------------------------- |
+| FPT |   🟢 +2 |    7 | HBC chuyển nhượng 1 dự án cho FPT (CafeF)|
+
+## 4. Xếp hạng cả rổ (rule-based)
+| Mã       | Tín hiệu | RSI |  P/E | P/B | ROE | Khuyến nghị |
+| :------- | :------- | --: | ---: | --: | --: | :---------- |
+| MBB ◆11% | BUY      |  52 |  7.6 | 1.4 | 19% | GOM THÊM    |
+
+## 5. Phân tích chi tiết (TCBS real-time)
+… (rating, khối ngoại, đồng thuận CTCK, điểm vào, rủi ro) …
 ```
 
 **Việc của bạn:** máy chỉ *gợi ý*. Muốn làm theo thì tự vào app chứng khoán đặt lệnh tay — không có gì tự đặt lệnh thật.

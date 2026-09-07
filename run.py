@@ -11,7 +11,8 @@ import datetime
 import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
-                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table)
+                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table,
+                news_digest)
 
 
 def _print(obj):
@@ -193,15 +194,22 @@ def cmd_daily(a):
                  for r in res.get("ranking", []) if r.get("held") and "error" not in r]
     triggers = watch_mod._scan_triggers(positions, a.throttle)
 
+    held_syms = [p["symbol"] for p in positions]
+    news_syms = list(dict.fromkeys(held_syms + [s for s in res.get("shortlist", []) if s not in held_syms]))
+    macro = news_digest.macro_digest()
+    news_map = news_digest.symbols_news(news_syms)
+
     if str(res.get("mode", "")).startswith("fallback"):
         print("\n⚠️  TCBS MCP KHÔNG dùng được — đang chạy TEXT-MODE (kém chính xác, thiếu rating/khối ngoại real-time).")
         print("    Khắc phục: claude → /mcp → tcbs → Authenticate. Hoặc dùng --require-mcp để bắt lỗi thay vì fallback.")
     date = f"{datetime.datetime.now():%Y-%m-%d}"
-    report = (decision_table.render_daily(res, triggers, date)
-              + "\n\n## 4. PHÂN TÍCH CHI TIẾT (LLM/TCBS)\n\n" + res["plan"])
+    report = (decision_table.render_daily(res, triggers, date, macro=macro, news_map=news_map)
+              + "\n\n## 5. Phân tích chi tiết (TCBS real-time)\n\n"
+              + decision_table.strip_json(res["plan"]))
     print("\n" + report)
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
-    saved = journal.record("daily", {**res, "triggers": triggers, "cost": snap}, summary_md=report)
+    saved = journal.record("daily", {**res, "triggers": triggers, "macro_digest": macro,
+                                      "news": news_map, "cost": snap}, summary_md=report)
     if saved:
         print(f"→ báo cáo: {saved[:-5]}.md")
     if a.json:

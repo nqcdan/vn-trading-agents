@@ -60,21 +60,27 @@ def _budget(res: dict) -> float | None:
 
 
 def _box(headers: list[str], rows: list[list[str]], aligns: list[str]) -> str:
+    """Bảng MARKDOWN (render đẹp mọi viewer .md; raw text vẫn thẳng cột nhờ pad)."""
     cols = len(headers)
     widths = [_w(headers[i]) for i in range(cols)]
     for r in rows:
         for i in range(cols):
             widths[i] = max(widths[i], _w(r[i]))
-
-    def _line(l: str, m: str, r: str) -> str:
-        return l + m.join("─" * (widths[i] + 2) for i in range(cols)) + r
+    widths = [max(3, w) for w in widths]
 
     def _row(vals: list[str]) -> str:
-        return "│ " + " │ ".join(_pad(vals[i], widths[i], aligns[i]) for i in range(cols)) + " │"
+        return "| " + " | ".join(_pad(vals[i], widths[i], aligns[i]) for i in range(cols)) + " |"
 
-    out = [_line("┌", "┬", "┐"), _row(headers), _line("├", "┼", "┤")]
+    def _sep(i: int) -> str:
+        w = widths[i]
+        if aligns[i] == "r":
+            return "-" * (w - 1) + ":"
+        if aligns[i] == "c":
+            return ":" + "-" * (w - 2) + ":"
+        return ":" + "-" * (w - 1)
+
+    out = [_row(headers), "| " + " | ".join(_sep(i) for i in range(cols)) + " |"]
     out += [_row(r) for r in rows]
-    out.append(_line("└", "┴", "┘"))
     return "\n".join(out)
 
 
@@ -205,8 +211,48 @@ def render_ranking(rows: list[dict]) -> str:
 
 def render_triggers(triggers: list[dict]) -> str:
     if not triggers:
-        return "Không có cảnh báo — danh mục ổn (không mã nào RSI≥70 / tập trung / thủng SMA50 / tin xấu)."
-    return "\n".join(f"• {t['symbol']}: " + "; ".join(t["reasons"]) for t in triggers)
+        return "_Không có cảnh báo — danh mục ổn (không mã nào RSI≥70 / tập trung / thủng SMA50 / tin xấu)._"
+    return "\n".join(f"- **{t['symbol']}**: " + "; ".join(t["reasons"]) for t in triggers)
+
+
+_SENTIMENT_ICON = {"BULLISH": "🟢 tích cực", "BEARISH": "🔴 tiêu cực", "NEUTRAL": "⚪ trung tính"}
+
+
+def render_macro(macro: dict) -> str:
+    sig = macro.get("signal", "NEUTRAL")
+    head = f"**Tâm lý vĩ mô (voz Điểm báo):** {_SENTIMENT_ICON.get(sig, sig)} · net {macro.get('net', 0):+d} · {macro.get('n', 0)} tin"
+    titles = macro.get("titles") or []
+    if not titles:
+        return head
+    return head + "\n" + "\n".join(f"> {t}" for t in titles)
+
+
+def render_symbol_news(news_map: dict, title_width: int = 60) -> str:
+    if not news_map:
+        return "_Không lấy được tin per-symbol._"
+    rows = []
+    for sym, d in news_map.items():
+        sig = d.get("signal", "NEUTRAL")
+        icon = {"BULLISH": "🟢", "BEARISH": "🔴", "NEUTRAL": "⚪"}.get(sig, "⚪")
+        senti = f"{icon} {d.get('net', 0):+d}" if d.get("n") else "—"
+        latest = d.get("latest") or []
+        if latest:
+            headline = latest[0][0]
+            src = latest[0][1]
+            head = _clip(headline, title_width) + (f" ({src})" if src else "")
+        else:
+            head = "—"
+        rows.append([sym, senti, str(d.get("n", 0)), head])
+    return _box(["Mã", "Tâm lý", "#tin", "Tin gần nhất"], rows, ["l", "r", "r", "l"])
+
+
+def strip_json(plan: str) -> str:
+    """Bỏ khối ```json (chỉ dành cho paper auto-apply) + separator thừa khỏi bản hiển thị."""
+    if not plan:
+        return ""
+    out = re.sub(r"```json.*?```", "", plan, flags=re.DOTALL | re.IGNORECASE)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip().rstrip("-").strip()
 
 
 def render(res: dict) -> str:
@@ -231,15 +277,23 @@ def render(res: dict) -> str:
     return "\n".join(out)
 
 
-def render_daily(res: dict, triggers: list[dict], date: str) -> str:
-    """Báo cáo NGÀY gộp: cảnh báo (watch) + quyết định/giải ngân (advise) + xếp hạng cả rổ (recommend)."""
+def render_daily(res: dict, triggers: list[dict], date: str,
+                 macro: dict | None = None, news_map: dict | None = None) -> str:
+    """Báo cáo NGÀY (markdown): vĩ mô + cảnh báo + quyết định/giải ngân + tin từng mã
+    + xếp hạng cả rổ + phân tích chi tiết. Layout deterministic, render đẹp mọi viewer .md."""
     if "error" in res:
         return f"Lỗi daily: {res['error']}"
     table, verdict = _action_block(res)
-    out = [_header(res, title=f"BÁO CÁO NGÀY {date} —"), "",
-           "## 1. CẢNH BÁO DANH MỤC", render_triggers(triggers), "",
-           "## 2. QUYẾT ĐỊNH & GIẢI NGÂN", verdict, "", table, "",
-           "## 3. XẾP HẠNG CẢ RỔ (rule-based)", render_ranking(res.get("ranking", []))]
+    budget = _money(_budget(res))
+    out = [f"# BÁO CÁO NGÀY {date} · rổ {res.get('group', '?')}", "",
+           f"**Nguồn:** {res.get('mode', '?')} · **Ngân sách:** {budget}", ""]
+    if macro:
+        out += [render_macro(macro), ""]
+    out += ["## 1. Cảnh báo danh mục", render_triggers(triggers), "",
+            "## 2. Quyết định & giải ngân", f"**{verdict}**", "", table, ""]
+    if news_map:
+        out += ["## 3. Tin tức từng mã", render_symbol_news(news_map), ""]
+    out += ["## 4. Xếp hạng cả rổ (rule-based)", render_ranking(res.get("ranking", []))]
     if res.get("errors"):
-        out += ["", "Mã lỗi dữ liệu (bỏ qua): " + ", ".join(res["errors"][:8])]
+        out += ["", "_Mã lỗi dữ liệu (bỏ qua): " + ", ".join(res["errors"][:8]) + "_"]
     return "\n".join(out)
