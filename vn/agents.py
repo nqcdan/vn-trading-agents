@@ -68,7 +68,10 @@ _NO_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep",
              "WebSearch", "WebFetch", "Task", "TodoWrite"]
 
 
-def _llm_via_cli(prompt: str, system: str, timeout: int = 90) -> str:
+_LLM_TIMEOUT = int(os.environ.get("VN_LLM_TIMEOUT", "180"))
+
+
+def _llm_via_cli(prompt: str, system: str, timeout: int = _LLM_TIMEOUT) -> str:
     model = os.environ.get("VN_LLM_MODEL", "sonnet")
     cmd = ["claude", "-p", prompt, "--model", model,
            "--append-system-prompt", (system or _DEFAULT_SYS) + _CLI_SYS_GUARD,
@@ -86,7 +89,7 @@ def _llm_via_cli(prompt: str, system: str, timeout: int = 90) -> str:
     return r.stdout.strip()
 
 
-def _llm(prompt: str, system: str = "", max_tokens: int = 700, timeout: int = 90) -> str:
+def _llm(prompt: str, system: str = "", max_tokens: int = 700, timeout: int = _LLM_TIMEOUT) -> str:
     backend = _backend()
     if backend == "claude-cli":
         return _llm_via_cli(prompt, system, timeout)

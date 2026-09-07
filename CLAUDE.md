@@ -40,7 +40,7 @@ Không có test suite trong package `vn/`. Chạy CLI là cách verify chính.
 
 ### Bật LLM (tùy chọn — không có thì agent chạy rule-based)
 
-Backend chọn tự động qua `VN_LLM_BACKEND=auto` (mặc định): có `ANTHROPIC_API_KEY` → API (tính token); nếu không mà có `claude` CLI đã login → subscription (miễn phí per-token); nếu không có gì → rule-based. Ép cứng: `VN_LLM_BACKEND=api|claude-cli|off`. Model: `VN_LLM_MODEL` (`sonnet|haiku|opus` cho CLI, `claude-sonnet-4-6…` cho API). Backend `claude-cli` tự tắt MCP + cấm tool để chỉ lấy text.
+Backend chọn tự động qua `VN_LLM_BACKEND=auto` (mặc định): có `ANTHROPIC_API_KEY` → API (tính token); nếu không mà có `claude` CLI đã login → subscription (miễn phí per-token); nếu không có gì → rule-based. Ép cứng: `VN_LLM_BACKEND=api|claude-cli|off`. Model: `VN_LLM_MODEL` (`sonnet|haiku|opus` cho CLI, `claude-sonnet-4-6…` cho API). Timeout mỗi lần gọi LLM CLI: `VN_LLM_TIMEOUT` (giây, mặc định 180) — nới thêm nếu `sonnet` hay bị `llm-failed (RuntimeError)` do quá hạn. Backend `claude-cli` tự tắt MCP + cấm tool để chỉ lấy text.
 
 ## Kiến trúc
 
