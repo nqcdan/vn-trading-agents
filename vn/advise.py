@@ -192,4 +192,4 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
             "ranking": r["ranking"], "shortlist": sorted(keep),
             "cash_txt": cash_txt, "cash_info": cash_info, "budget": budget,
             "errors": r["errors"], "plan": plan,
-            "actions": actions.parse_actions(plan)}
+            "actions": actions.reconcile_lots(actions.parse_actions(plan), budget)}

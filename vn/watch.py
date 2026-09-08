@@ -250,5 +250,5 @@ def watch(asset_class: str = "vn_stock", holdings_csv: str | None = None,
         except BaseException as e2:
             result["proposal"] = None
             result["mode"] = f"llm-failed ({type(e2).__name__})"
-    result["actions"] = actions.parse_actions(result.get("proposal"))
+    result["actions"] = actions.reconcile_lots(actions.parse_actions(result.get("proposal")), budget)
     return result

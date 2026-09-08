@@ -33,6 +33,31 @@ def _valid(a) -> bool:
     return lots >= 0 and price >= 0
 
 
+def reconcile_lots(acts: list[dict], budget: float | None) -> list[dict]:
+    """LLM hay điền `lots` = số CỔ PHIẾU thay vì số LÔ (1 lô = 100 cp) → tiền ×100 sai.
+
+    Guard budget-aware, model-agnostic: nếu tổng tiền tính-theo-lô vượt xa ngân sách
+    nhưng tính-theo-cp lại vừa khít → suy ra LLM dùng đơn vị cổ phiếu; quy về lô
+    (÷100, làm tròn xuống, tối thiểu 1). Model xuất đúng số lô → không kích, giữ nguyên.
+    """
+    if not budget or budget <= 0:
+        return acts
+    buys = [a for a in acts if a["action"] == "BUY" and a["price"] > 0 and a["lots"] > 0]
+    if not buys:
+        return acts
+    lot_cost = sum(a["lots"] * 100 * a["price"] for a in buys)
+    share_cost = sum(a["lots"] * a["price"] for a in buys)
+    if not (lot_cost > budget * 1.2 and share_cost <= budget * 1.2):
+        return acts
+    out = []
+    for a in acts:
+        if a["action"] in ("BUY", "SELL") and a["lots"] >= 100:
+            out.append({**a, "lots": max(1, a["lots"] // 100)})
+        else:
+            out.append(a)
+    return out
+
+
 def parse_actions(text: str) -> list[dict]:
     if not text:
         return []
