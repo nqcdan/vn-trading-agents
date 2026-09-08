@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 
+from .vn_market import LOT_SIZE
+
 VALID_ACTIONS = {"BUY", "SELL", "HOLD"}
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
@@ -56,6 +58,55 @@ def reconcile_lots(acts: list[dict], budget: float | None) -> list[dict]:
         else:
             out.append(a)
     return out
+
+
+def validate_actions(acts: list[dict], budget: float | None,
+                     held_lots: dict | None = None) -> tuple[list[dict], list[str]]:
+    """Chặn kế hoạch LLM vô lý (money path) bằng dữ liệu thật, model-agnostic:
+
+    - BÁN vượt số lô đang giữ → cắt về số đang giữ (bỏ lệnh nếu giữ 0). Cần `held_lots`
+      ({SYM: số lô đang giữ}); không có thì không chặn được (giữ nguyên).
+    - Tổng MUA vượt (ngân sách + tiền bán thật vừa cắt) → cắt/loại lệnh mua thừa theo thứ tự.
+
+    Trả (acts đã làm sạch, warnings) — warnings nổi bật trong báo cáo để người thấy đã can thiệp.
+    """
+    held_lots = held_lots or {}
+    warnings: list[str] = []
+    stage1: list[dict] = []
+    sell_proceeds = 0.0
+    for a in acts:
+        if a["action"] == "SELL":
+            sym = a["symbol"].upper()
+            if sym in held_lots:
+                cap = held_lots[sym]
+                if a["lots"] > cap:
+                    warnings.append(f"BÁN {sym}: {a['lots']} lô > đang giữ {cap} lô → cắt còn {cap}")
+                    if cap <= 0:
+                        continue
+                    a = {**a, "lots": cap}
+            sell_proceeds += a["lots"] * LOT_SIZE * a["price"]
+        stage1.append(a)
+
+    if not budget or budget <= 0:
+        return stage1, warnings
+
+    avail = budget + sell_proceeds
+    spent = 0.0
+    out: list[dict] = []
+    for a in stage1:
+        if a["action"] == "BUY" and a["price"] > 0 and a["lots"] > 0:
+            cost = a["lots"] * LOT_SIZE * a["price"]
+            if spent + cost > avail + 1:
+                max_lots = int((avail - spent) // (LOT_SIZE * a["price"]))
+                if max_lots <= 0:
+                    warnings.append(f"MUA {a['symbol']}: {a['lots']} lô vượt ngân sách còn lại → loại")
+                    continue
+                warnings.append(f"MUA {a['symbol']}: {a['lots']} lô vượt ngân sách → cắt còn {max_lots}")
+                a = {**a, "lots": max_lots}
+                cost = max_lots * LOT_SIZE * a["price"]
+            spent += cost
+        out.append(a)
+    return out, warnings
 
 
 def parse_actions(text: str) -> list[dict]:

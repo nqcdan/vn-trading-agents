@@ -116,18 +116,20 @@ def _parse_money(s: str) -> float:
         return 0.0
 
 
-def _verdict(deploy: float, budget: float | None, has_acts: bool, macro: dict) -> str:
+def _verdict(deploy: float, budget: float | None, has_acts: bool, macro: dict,
+             sell: float = 0.0) -> str:
     if not has_acts or deploy <= 0:
         tail = " (vĩ mô yếu, không mã nào đủ hấp dẫn)" if macro.get("signal") == "BEARISH" else ""
         return f"▶ QUYẾT ĐỊNH ĐỢT NÀY: HOLD TIỀN — agent không đề xuất mua{tail}."
     if not budget:
         return f"▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN {_money(deploy)}."
-    pct = deploy / budget * 100
-    reserve = budget - deploy
+    net = deploy - sell  # tiền MỚI rót ra (phần mua vượt phần bán tự tài trợ)
+    pct = max(0.0, net) / budget * 100
+    reserve = budget - net
     lean = ("giải ngân phần lớn" if pct >= 60
             else "giải ngân một phần, giữ đệm tiền mặt lớn" if pct >= 30
             else "giải ngân thăm dò, phần lớn hold tiền")
-    return (f"▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN {_money(deploy)} ({pct:.0f}%) · "
+    return (f"▶ QUYẾT ĐỊNH ĐỢT NÀY: GIẢI NGÂN RÒNG {_money(max(0.0, net))} ({pct:.0f}%) · "
             f"giữ lại {_money(reserve)} ({100 - pct:.0f}%) — {lean}.")
 
 
@@ -182,9 +184,13 @@ def _action_block(res: dict, reason_width: int = 46) -> tuple[str, str]:
                          _clip(_rule_note(row), reason_width)])
 
     rows.sort(key=lambda r: (_ACTION_ORDER.get(r[1], 5), -_parse_money(r[3])))
-    verdict = _verdict(deploy, budget, bool(all_acts), res.get("macro", {}))
+    verdict = _verdict(deploy, budget, bool(all_acts), res.get("macro", {}), sell)
     if sell > 0:
-        verdict += f" Kèm BÁN {_money(sell)}."
+        verdict += f" Kèm BÁN {_money(sell)} (tài trợ phần mua)."
+    warns = res.get("action_warnings") or []
+    if warns:
+        verdict += "\n\n> ⚠ Đã tự chỉnh lệnh LLM cho khớp thực tế (số cổ đang giữ / ngân sách):\n" \
+                   + "\n".join(f"> - {w}" for w in warns)
     table = _box(["Mã", "Hành động", "Lô", "Tiền", "% NS", "Tín hiệu / Lý do"],
                  rows, ["l", "l", "r", "r", "r", "l"])
     return table, verdict

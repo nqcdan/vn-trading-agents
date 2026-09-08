@@ -188,8 +188,18 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
 
     plan = plan.strip()
     budget = float(cash_info["total"]) if cash_info and cash_info.get("total") is not None else None
+    held_lots = {}
+    try:
+        for h in pf.fetch_holdings(asset_class):
+            q = h.get("qty")
+            if h.get("symbol") and q:
+                held_lots[str(h["symbol"]).upper()] = int(q) // 100
+    except Exception:
+        pass
+    acts = actions.reconcile_lots(actions.parse_actions(plan), budget)
+    acts, act_warnings = actions.validate_actions(acts, budget, held_lots)
     return {"group": group, "macro": macro, "mode": mode, "ranking_lines": lines,
             "ranking": r["ranking"], "shortlist": sorted(keep),
             "cash_txt": cash_txt, "cash_info": cash_info, "budget": budget,
             "errors": r["errors"], "plan": plan,
-            "actions": actions.reconcile_lots(actions.parse_actions(plan), budget)}
+            "actions": acts, "action_warnings": act_warnings}
