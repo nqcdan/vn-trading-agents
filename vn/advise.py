@@ -83,10 +83,11 @@ def _shortlist(rows: list[dict], extra: list[str] | None = None) -> tuple[list[s
     return held, cands
 
 
-def _text_prompt(group, macro, lines, cash_txt) -> str:
+def _text_prompt(group, macro, lines, cash_txt, held_lots_txt="") -> str:
     return (
         f"Vĩ mô tin thị trường hiện tại: {macro['signal']} (net {macro['net']}).\n"
-        f"Tiền mới cần giải ngân tháng này: {cash_txt}.\n\n"
+        f"Tiền mới cần giải ngân tháng này: {cash_txt}.\n"
+        f"SỐ LÔ ĐANG GIỮ (1 lô=100cp, BÁN KHÔNG được vượt số này): {held_lots_txt}.\n\n"
         f"BẢNG TÍN HIỆU (danh mục đang giữ + rổ {group}, as-of hôm nay):\n"
         + "\n".join(lines) + "\n\n"
         "Ghi chú: ⟨LLM: …⟩ là phán quyết LLM sâu — ƯU TIÊN nó hơn tín hiệu rule-based. "
@@ -104,12 +105,14 @@ def _text_prompt(group, macro, lines, cash_txt) -> str:
     )
 
 
-def _mcp_prompt(group, macro, held, cands, ranking_lines, cash_txt) -> str:
+def _mcp_prompt(group, macro, held, cands, ranking_lines, cash_txt, held_lots_txt="") -> str:
     return (
         f"Lập KẾ HOẠCH ĐẦU TƯ THÁNG NÀY cho danh mục, dùng DỮ LIỆU TCBS REAL-TIME.\n"
         f"Vĩ mô tin thị trường (nguồn phụ): {macro['signal']} (net {macro['net']}). "
         f"Tiền mới giải ngân: {cash_txt}.\n\n"
         f"Mã ĐANG GIỮ: {', '.join(held) or '(không có)'}\n"
+        f"SỐ LÔ ĐANG GIỮ (1 lô=100cp — lệnh BÁN mỗi mã KHÔNG được vượt số lô này, "
+        f"kể cả khi chia nhiều lệnh tổng vẫn ≤ số giữ): {held_lots_txt}\n"
         f"Ứng viên mua mới (đã lọc rule-based từ {group}): {', '.join(cands) or '(không có)'}\n\n"
         "Rule-based tham khảo (giá/PE/RSI vnstock, có thể lệch — TCBS mới là chuẩn):\n"
         + "\n".join(ranking_lines) + "\n\n"
@@ -164,9 +167,19 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
     keep = {s.upper() for s in held + cands}
     prompt_lines = _ranking_lines(r["ranking"], keep=keep)  # trim → LLM khỏi nhồi cả rổ
 
+    held_lots = {}  # số lô đang giữ (1 lô=100cp) — bơm vào prompt để LLM khỏi bịa lệnh BÁN
+    try:
+        for h in pf.fetch_holdings(asset_class):
+            q = h.get("qty")
+            if h.get("symbol") and q:
+                held_lots[str(h["symbol"]).upper()] = int(q) // 100
+    except Exception:
+        pass
+    held_lots_txt = ", ".join(f"{s} {n} lô ({n * 100}cp)" for s, n in held_lots.items()) or "(không lấy được)"
+
     def _text_fallback(reason: str) -> tuple[str, str]:
         try:
-            p = _llm(_text_prompt(group, macro, prompt_lines, cash_txt),
+            p = _llm(_text_prompt(group, macro, prompt_lines, cash_txt, held_lots_txt),
                      system=profile_system(_DEFAULT_SYS), max_tokens=1500, timeout=220)
             return p, (reason or "text")
         except Exception as e:  # timeout/CLI lỗi → degrade sạch, không crash
@@ -174,7 +187,7 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
                     "phần ranking_lines / --json.)"), f"llm-failed ({e})"
 
     if use_mcp:
-        prompt = _mcp_prompt(group, macro, held, cands, prompt_lines, cash_txt)
+        prompt = _mcp_prompt(group, macro, held, cands, prompt_lines, cash_txt, held_lots_txt)
         try:
             plan, tcbs_ok = tcbs_mcp._llm_mcp(prompt, system=profile_system(tcbs_mcp._TCBS_SYS))
             mode = "tcbs-mcp" if tcbs_ok else "fallback-mcp-offline (rule-based, TCBS ngắt)"
@@ -188,14 +201,6 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
 
     plan = plan.strip()
     budget = float(cash_info["total"]) if cash_info and cash_info.get("total") is not None else None
-    held_lots = {}
-    try:
-        for h in pf.fetch_holdings(asset_class):
-            q = h.get("qty")
-            if h.get("symbol") and q:
-                held_lots[str(h["symbol"]).upper()] = int(q) // 100
-    except Exception:
-        pass
     acts = actions.reconcile_lots(actions.parse_actions(plan), budget)
     acts, act_warnings = actions.validate_actions(acts, budget, held_lots)
     return {"group": group, "macro": macro, "mode": mode, "ranking_lines": lines,
