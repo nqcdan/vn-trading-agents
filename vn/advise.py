@@ -85,7 +85,7 @@ def _shortlist(rows: list[dict], extra: list[str] | None = None) -> tuple[list[s
 
 def _text_prompt(group, macro, lines, cash_txt) -> str:
     return (
-        f"Vĩ mô voz hiện tại: {macro['signal']} (net {macro['net']}).\n"
+        f"Vĩ mô tin thị trường hiện tại: {macro['signal']} (net {macro['net']}).\n"
         f"Tiền mới cần giải ngân tháng này: {cash_txt}.\n\n"
         f"BẢNG TÍN HIỆU (danh mục đang giữ + rổ {group}, as-of hôm nay):\n"
         + "\n".join(lines) + "\n\n"
@@ -107,7 +107,7 @@ def _text_prompt(group, macro, lines, cash_txt) -> str:
 def _mcp_prompt(group, macro, held, cands, ranking_lines, cash_txt) -> str:
     return (
         f"Lập KẾ HOẠCH ĐẦU TƯ THÁNG NÀY cho danh mục, dùng DỮ LIỆU TCBS REAL-TIME.\n"
-        f"Vĩ mô voz (nguồn phụ): {macro['signal']} (net {macro['net']}). "
+        f"Vĩ mô tin thị trường (nguồn phụ): {macro['signal']} (net {macro['net']}). "
         f"Tiền mới giải ngân: {cash_txt}.\n\n"
         f"Mã ĐANG GIỮ: {', '.join(held) or '(không có)'}\n"
         f"Ứng viên mua mới (đã lọc rule-based từ {group}): {', '.join(cands) or '(không có)'}\n\n"

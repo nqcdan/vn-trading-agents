@@ -5,7 +5,7 @@ Chạy: python run.py serve --port 8787
   GET /analyze/{SYM}       phân tích multi-agent đầy đủ (indicators+fundamentals+sentiment+macro+quyết định)
   GET /indicators/{SYM}    chỉ số kỹ thuật + định giá hiện tại (P/E, P/B, ROE, RSI…)
   GET /sentiment/{SYM}     tin CafeF/DN + điểm sentiment
-  GET /macro               tâm lý vĩ mô từ voz "Điểm báo"
+  GET /macro               tâm lý vĩ mô từ tin thị trường
   GET /screen?group=VN30&throttle=2.2&haircut=0.3&no_macro=0   backtest cả rổ + xếp hạng
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ ROUTES_DOC = {
     "GET /analyze/{SYM}": "phân tích multi-agent đầy đủ",
     "GET /indicators/{SYM}": "kỹ thuật + định giá hiện tại",
     "GET /sentiment/{SYM}": "tin + sentiment",
-    "GET /macro": "tâm lý vĩ mô voz",
+    "GET /macro": "tâm lý vĩ mô tin thị trường",
     "GET /portfolio?class=vn_stock": "đọc portfolio từ everyday + phân tích vị thế",
     "GET /screen?group=VN30": "backtest rổ + xếp hạng (chậm ~1 phút)",
 }

@@ -214,8 +214,8 @@ def trader(symbol: str, ta: dict, fa: dict, debate: dict, se: dict | None = None
 # ---------- Risk manager ----------
 
 def macro_mood() -> dict:
-    """Tâm lý thị trường vĩ mô từ voz 'Điểm báo' (cộng đồng retail)."""
-    m = vn_news.score_sentiment(vn_news.fetch_voz())
+    """Tâm lý vĩ mô suy từ headline tin thị trường (CafeF/Vietstock/VnEconomy/ĐTCK)."""
+    m = vn_news.score_sentiment(vn_news.fetch_market())
     m["agent"] = "macro"
     return m
 
@@ -228,7 +228,7 @@ def risk_manager(decision: dict, ind: dict, macro: dict | None = None) -> dict:
     note = f"vol20d={vol}%"
     if macro and macro.get("net", 0) <= -4:
         weight *= 0.7
-        note += f" | macro risk-off (voz net {macro['net']}) → haircut 30%"
+        note += f" | macro risk-off (tin net {macro['net']}) → haircut 30%"
     if decision["action"] != "BUY":
         weight = 0.0
     approved = decision["action"]

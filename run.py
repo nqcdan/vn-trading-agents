@@ -32,7 +32,7 @@ def cmd_analyze(a):
     for h in se.get("headlines", [])[:3]:
         print(f"           • {h[:90]}")
     mm = res.get("macro", {})
-    print(f"Vĩ mô voz: {mm.get('signal','?')}  (Điểm báo: {mm.get('n',0)} tin, net {mm.get('net',0)})")
+    print(f"Vĩ mô tin thị trường: {mm.get('signal','?')}  ({mm.get('n',0)} tin, net {mm.get('net',0)})")
     print(f"BULL     : {res['debate']['bull'][:300]}")
     print(f"BEAR     : {res['debate']['bear'][:300]}")
     print(f"TRADER   : {d['action']}  (conf {d.get('confidence')}) — {d.get('reason','')}")
@@ -80,7 +80,7 @@ def cmd_portfolio(a):
     pnl = res.get("total_pnl")
     if pnl is not None:
         print(f"P&L: {pnl:+,.0f}đ ({res['total_pnl_pct']:+.1f}%) | "
-              f"vĩ mô voz: {res['macro']['signal']} (net {res['macro']['net']})")
+              f"vĩ mô tin: {res['macro']['signal']} (net {res['macro']['net']})")
     c = res["signal_counts"]
     print(f"Tín hiệu: {c['BUY']} BUY / {c['HOLD']} HOLD / {c['SELL']} SELL "
           f"| {c['overbought']} mã quá mua")
@@ -111,7 +111,7 @@ def cmd_recommend(a):
     snap = agents.cost_snapshot()
     m = res["macro"]
     print(f"\n=== Khuyến nghị {res['group']} + danh mục | {res['n']} mã "
-          f"| vĩ mô voz: {m['signal']} (net {m['net']}) ===")
+          f"| vĩ mô tin: {m['signal']} (net {m['net']}) ===")
     if res["llm_verified"]:
         print(f"LLM-verified: {', '.join(res['llm_verified'])}")
     print(f"\n{'MÃ':5} {'giữ':>4} {'tín hiệu':>9} {'align':>6} {'RSI':>5} {'P/E':>6} {'P/B':>5} "

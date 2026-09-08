@@ -32,29 +32,46 @@ def _dedup(items: list[dict]) -> list[dict]:
     return out
 
 
-def macro_digest(voz_limit: int = 3, market_limit: int = 5) -> dict:
-    """Vĩ mô voz (tâm lý cộng đồng) + tin THỊ TRƯỜNG CafeF (tài chính thật)."""
+def _by_recency(items: list[dict]) -> list[dict]:
+    """Mới nhất trước — published là ISO (sort lexical đúng); tin không parse được xuống cuối."""
+    return sorted(items, key=lambda n: str(n.get("published") or ""), reverse=True)
+
+
+def _diverse_recent(items: list[dict], limit: int) -> list[dict]:
+    """Xen kẽ nguồn: mỗi vòng lấy tin mới nhất của từng nguồn → mọi nguồn được hiện,
+    không để nguồn đăng dày (CafeF) chiếm hết. Trong 1 nguồn vẫn theo recency."""
+    buckets: dict[str, list[dict]] = {}
+    for n in _by_recency(items):
+        buckets.setdefault(n.get("source", ""), []).append(n)
+    out, queues = [], list(buckets.values())
+    while len(out) < limit and any(queues):
+        for q in queues:
+            if q:
+                out.append(q.pop(0))
+                if len(out) >= limit:
+                    break
+    return out
+
+
+def macro_digest(market_limit: int = 8) -> dict:
+    """Vĩ mô suy từ headline tin THỊ TRƯỜNG (CafeF/Vietstock/VnEconomy/ĐTCK) — tâm lý + headline."""
     try:
-        voz = vn_news.fetch_voz()
+        market = _dedup(vn_news.fetch_market())
     except Exception:
-        voz = []
-    try:
-        cafef = _dedup(vn_news.fetch_cafef())
-    except Exception:
-        cafef = []
-    s = vn_news.score_sentiment(voz)
+        market = []
+    s = vn_news.score_sentiment(market)  # tâm lý trên TOÀN BỘ tin (mọi nguồn)
     return {
         "signal": s["signal"], "net": s["net"], "n": s["n"],
-        "voz_titles": [n["title"] for n in voz[:voz_limit]],
         "market": [{"title": n["title"], "date": _short_date(n.get("published", "")),
-                    "link": n.get("link", "")} for n in cafef[:market_limit]],
+                    "link": n.get("link", ""), "source": n.get("source", "")}
+                   for n in _diverse_recent(market, market_limit)],
     }
 
 
 def symbols_news(symbols: list[str], per: int = 4, use_vnstock: bool = True) -> dict:
     """{SYM: {signal, net, n, latest:[{title, source, date, link, summary}]}} — feed fetch 1 lần, lọc per-symbol."""
     try:
-        feeds = vn_news.fetch_cafef() + vn_news.fetch_voz()
+        feeds = vn_news.fetch_market()
     except Exception:
         feeds = []
     out = {}
@@ -74,5 +91,5 @@ def symbols_news(symbols: list[str], per: int = 4, use_vnstock: bool = True) -> 
                               "date": _short_date(n.get("published", "")),
                               "link": n.get("link", ""),
                               "summary": (n.get("summary") or "").strip()}
-                             for n in items[:per]]}
+                             for n in _by_recency(items)[:per]]}
     return out

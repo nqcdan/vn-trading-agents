@@ -24,11 +24,11 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 
 ### Đọc output — vĩ mô + 5 mục
 
-- **Đầu trang** — tâm lý retail voz (net, chỉ báo) + **tin thị trường CafeF** (5 headline mới nhất, ngày + link bấm được).
+- **Đầu trang** — tâm lý tin thị trường (net, suy từ headline tài chính) + **tin thị trường đa nguồn** (CafeF · Vietstock · VnEconomy · ĐTCK, xen kẽ nguồn, mới nhất, ngày + link + nhãn nguồn bấm được).
 - **`## 1. Danh mục hiện tại`** — SL / giá vốn / giá TT / giá trị / **P&L** từng vị thế + tổng P&L (từ everyday).
 - **`## 2. Cảnh báo danh mục`** — mã đang giữ bị trigger (RSI≥70 / tập trung >25% NAV / SELL / thủng SMA50 / tin xấu). Không có → "danh mục ổn".
 - **`## 3. Quyết định & giải ngân`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN, kèm bán nếu có) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ.
-- **`## 4. Tin tức từng mã`** — mỗi mã (đang giữ + ứng viên): tâm lý (🟢/🔴/⚪ + net) + tối đa 4 headline kèm ngày, link, nguồn (CafeF/vnstock) + trích 1 dòng nội dung.
+- **`## 4. Tin tức từng mã`** — mỗi mã (đang giữ + ứng viên): tâm lý (🟢/🔴/⚪ + net) + tối đa 4 headline kèm ngày, link, nguồn (CafeF/Vietstock/VnEconomy/ĐTCK/vnstock) + trích 1 dòng nội dung.
 - **`## 5. Xếp hạng cả rổ`** — toàn rổ xếp theo tín hiệu (BUY→SELL), rule-based, soi cơ hội ngoài danh mục.
 - **`## 6. Phân tích chi tiết`** — diễn giải sâu từng mã theo TCBS real-time: rating 7 chiều, khối ngoại, đồng thuận CTCK, điểm vào chia lệnh, rủi ro theo dõi.
 - **`## Giải nghĩa thuật ngữ`** (cuối) — NAV, P/E, P/B, ROE, RSI, SMA50, golden/death cross, khối ngoại, YoY, T+2… cho người mới.
@@ -42,7 +42,7 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 
 **Nguồn:** tcbs-mcp · **Ngân sách:** 122,7tr
 
-**Tâm lý vĩ mô (voz Điểm báo):** 🟢 tích cực · net +4 · 20 tin
+**Tâm lý tin thị trường:** 🟢 tích cực · net +12 · 300 tin _(suy từ headline tài chính)_
 > Vingroup lập kỷ lục vốn hóa 2 triệu tỉ đồng trên sàn chứng khoán
 
 ## 1. Cảnh báo danh mục

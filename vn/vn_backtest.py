@@ -37,7 +37,7 @@ def _signal_at(df: pd.DataFrame, i: int, fund: dict) -> str:
 def _index_regime(start: str, end: str, index: str = "VNINDEX") -> dict:
     """Chế độ thị trường theo ngày: risk_off = VNINDEX đóng cửa < SMA50.
 
-    Đây là proxy BACKTEST-ĐƯỢC thay cho macro-mood của voz (voz chỉ có tin
+    Đây là proxy BACKTEST-ĐƯỢC thay cho macro-mood tin thị trường (RSS chỉ có tin
     hiện tại, không có kho lịch sử → không thể tái dựng theo ngày quá khứ).
     """
     from datetime import date, timedelta

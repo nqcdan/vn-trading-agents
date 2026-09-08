@@ -1,6 +1,11 @@
-"""News feed cho sentiment agent — CafeF RSS + vnstock per-symbol, chỉ dùng stdlib."""
+"""News feed cho sentiment agent — RSS báo tài chính VN + vnstock per-symbol, chỉ dùng stdlib.
+
+Nguồn thị trường (free RSS, không login): CafeF, Vietstock, VnEconomy, ĐTCK (tinnhanhchungkhoan).
+Tâm lý vĩ mô suy ra từ chính headline tài chính (lexicon) — KHÔNG dùng forum retail.
+"""
 from __future__ import annotations
 import contextlib
+import gzip
 import io
 import re
 import urllib.request
@@ -13,16 +18,27 @@ CAFEF_FEEDS = [
     "https://cafef.vn/doanh-nghiep.rss",
     "https://cafef.vn/tai-chinh-ngan-hang.rss",
 ]
-# voz "Điểm báo" — RSS public (không cần login; trang HTML bị Cloudflare chặn).
-VOZ_FEEDS = ["https://voz.vn/f/diem-bao.33/index.rss"]
+# (nhãn nguồn, url RSS) — chỉ giữ feed đã kiểm chứng trả item. Bổ sung nguồn: thêm 1 dòng.
+MARKET_FEEDS = [
+    ("CafeF", "https://cafef.vn/thi-truong-chung-khoan.rss"),
+    ("CafeF", "https://cafef.vn/doanh-nghiep.rss"),
+    ("CafeF", "https://cafef.vn/tai-chinh-ngan-hang.rss"),
+    ("Vietstock", "https://vietstock.vn/145/chung-khoan.rss"),
+    ("Vietstock", "https://vietstock.vn/830/co-phieu.rss"),
+    ("VnEconomy", "https://vneconomy.vn/chung-khoan.rss"),
+    ("ĐTCK", "https://www.tinnhanhchungkhoan.vn/rss/chung-khoan-568.rss"),
+]
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) vn-trading-agents/1.0"
 _TAG = re.compile(r"<[^>]+>")
 
 
 def _fetch(url: str, timeout: int = 15) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept-Encoding": "gzip"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode("utf-8", "replace")
+        raw = r.read()
+    if raw[:2] == b"\x1f\x8b" or "gzip" in (r.headers.get("Content-Encoding") or ""):
+        raw = gzip.decompress(raw)
+    return raw.decode("utf-8", "replace")
 
 
 def _clean(text: str) -> str:
@@ -55,10 +71,11 @@ def fetch_cafef(feeds: list[str] | None = None) -> list[dict]:
     return out
 
 
-def fetch_voz(feeds: list[str] | None = None) -> list[dict]:
+def fetch_market(feeds: list[tuple[str, str]] | None = None) -> list[dict]:
+    """Gộp tin THỊ TRƯỜNG từ mọi nguồn RSS tài chính (CafeF/Vietstock/VnEconomy/ĐTCK)."""
     out = []
-    for url in feeds or VOZ_FEEDS:
-        out += _parse_feed(url, "voz/Điểm báo")
+    for source, url in feeds or MARKET_FEEDS:
+        out += _parse_feed(url, source)
     return out
 
 
@@ -88,14 +105,13 @@ def _vnstock_news(symbol: str, limit: int) -> list[dict]:
     return out
 
 
-def get_news(symbol: str, limit: int = 12, cafef_only: bool = False,
-             include_voz: bool = True) -> list[dict]:
-    """Tin per-symbol: CafeF RSS + voz Điểm báo (lọc theo mã) + vnstock company news."""
+def get_news(symbol: str, limit: int = 12, market_only: bool = False) -> list[dict]:
+    """Tin per-symbol: RSS báo tài chính (lọc theo mã) + vnstock company news."""
     sym = symbol.upper()
-    feeds = fetch_cafef() + (fetch_voz() if include_voz else [])
+    feeds = fetch_market()
     hit = [n for n in feeds
            if _symbol_mentions(n["title"], sym) or _symbol_mentions(n["summary"], sym)]
-    items = hit if cafef_only else hit + _vnstock_news(sym, limit)
+    items = hit if market_only else hit + _vnstock_news(sym, limit)
     seen, dedup = set(), []
     for n in items:
         key = n["title"][:80]

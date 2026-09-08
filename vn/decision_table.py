@@ -137,7 +137,7 @@ def _header(res: dict, title: str = "Kế hoạch") -> str:
     macro = res.get("macro", {})
     macro_s = f"{macro.get('signal', '—')} (net {macro.get('net', 0)})"
     return (f"=== {title} {res.get('group', '?')} | nguồn: {res.get('mode', '?')} "
-            f"| vĩ mô voz: {macro_s} | ngân sách: {_money(_budget(res))} ===")
+            f"| vĩ mô tin: {macro_s} | ngân sách: {_money(_budget(res))} ===")
 
 
 def _held_tag(row: dict) -> str:
@@ -236,13 +236,14 @@ def _date_anchor(date: str, link: str) -> str:
 
 def render_macro(macro: dict, title_width: int = 78) -> str:
     sig = macro.get("signal", "NEUTRAL")
-    out = [f"**Tâm lý retail (voz Điểm báo):** {_SENTIMENT_ICON.get(sig, sig)} · "
-           f"net {macro.get('net', 0):+d} · {macro.get('n', 0)} tin _(chỉ báo tâm lý, không phải headline)_"]
+    out = [f"**Tâm lý tin thị trường:** {_SENTIMENT_ICON.get(sig, sig)} · "
+           f"net {macro.get('net', 0):+d} · {macro.get('n', 0)} tin _(suy từ headline tài chính)_"]
     market = macro.get("market") or []
     if market:
-        out += ["", "**Tin thị trường (CafeF):**"]
+        out += ["", "**Tin thị trường (CafeF · Vietstock · VnEconomy · ĐTCK):**"]
         for m in market:
-            out.append(f"- {_date_anchor(m.get('date', ''), m.get('link', ''))}{_clip(m.get('title', ''), title_width)}")
+            src = f" _({m['source']})_" if m.get("source") else ""
+            out.append(f"- {_date_anchor(m.get('date', ''), m.get('link', ''))}{_clip(m.get('title', ''), title_width)}{src}")
     return "\n".join(out)
 
 
