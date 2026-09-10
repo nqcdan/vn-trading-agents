@@ -1,7 +1,7 @@
 ---
 title: Runbook vận hành vn-trading-agents
 scope: sử dụng hàng ngày — quét EOD, kế hoạch tháng, paper-trade
-updated: 2026-09-07
+updated: 2026-09-10
 ---
 
 # Runbook vận hành vn-trading-agents
@@ -72,6 +72,18 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 ```
 
 **Việc của bạn:** máy chỉ *gợi ý*. Muốn làm theo thì tự vào app chứng khoán đặt lệnh tay — không có gì tự đặt lệnh thật.
+
+### Quy trình chuẩn: chạy EOD → đặt lệnh phiên hôm sau
+
+Nhịp thiết kế của `daily`: chạy cuối ngày, đọc quyết định, đặt lệnh vào phiên sáng hôm sau (swing theo ngày, không lướt intraday).
+
+1. **~18:00 (sau phiên, tối)** chạy `daily` → đọc báo cáo. Chạy sau ~15:30 để giá đóng cửa, khối ngoại ròng, RSI/SMA của ngày đã chốt; buổi tối có thêm tin phân tích sau phiên.
+2. **Chốt danh sách lệnh** — mã + giá LO + số lô, tôn trọng chia đợt trong báo cáo (vd "3 lô ngay + 3 lô khi Stoch bật"). Đừng vào hết 1 lần — chia đợt là kiểm soát rủi ro, không phải trang trí.
+3. **Đảm bảo tiền đã ở TK chứng khoán** — ngân sách báo cáo lấy từ ví bank everyday, nhưng đặt lệnh cần tiền nằm sẵn trong TK chứng khoán (chuyển tối trước). Lệnh nào *bán để lấy tiền mua* → tiền bán T+2 mới về, không mua ngay sáng mai bằng tiền đó.
+4. **Sáng mai 9:15 (sau ATO)** đặt lệnh **LO** quanh giá tham chiếu — tránh ATO/MP mù. Giá báo cáo là giá đóng cửa hôm trước; nếu sáng mai gap tăng >2–3% so giá báo cáo thì tín hiệu "điểm vào đẹp" không còn đúng → bỏ hoặc chờ.
+5. **Lệnh khớp → ghi vào sổ paper** (`paper apply` / `paper advise`) để đối chiếu hiệu quả về sau.
+
+**Ghi đè qua đêm:** trước khi bấm lệnh sáng mai, liếc tin thế giới (mục vĩ mô có tin chứng khoán Mỹ). Đêm DJIA/S&P rơi mạnh → VN dễ đỏ → hoãn lệnh mua chờ ổn định. Tín hiệu EOD vẫn valid cho phiên kế, nhưng tin qua đêm là biến số ghi đè.
 
 ### Các lệnh lẻ (khi cần, không bắt buộc chạy hàng ngày)
 
