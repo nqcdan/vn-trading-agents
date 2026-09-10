@@ -51,7 +51,7 @@ def _parse_tcbs_marker(out: str) -> tuple[str, bool]:
     return clean.strip(), ok
 
 
-def _llm_mcp(prompt: str, system: str = "", timeout: int = 240) -> tuple[str, bool]:
+def _llm_mcp(prompt: str, system: str = "", timeout: int = int(os.environ.get("VN_MCP_TIMEOUT", "240"))) -> tuple[str, bool]:
     """Gọi claude CLI với tool TCBS bật (không --strict-mcp-config để nạp user-scope tcbs).
 
     → (text, tcbs_ok). tcbs_ok=False nghĩa TCBS ngắt giữa phiên: text vẫn là phân tích

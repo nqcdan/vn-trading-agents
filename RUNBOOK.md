@@ -160,6 +160,10 @@ Xem giá trị và chấm điểm định kỳ:
 
 Muốn dữ liệu TCBS real-time cho `watch` / `advise` / `tcbs` — đăng nhập lại: mở `claude`, gõ `/mcp`, chọn tcbs → Authenticate (đăng nhập TCBS + iOTP), rồi chạy lệnh ngay sau đó. Lưu ý: các lệnh này có thể in `nguồn: mcp` nhưng nếu trong kết quả có dòng "Server TCBS chưa kết nối" thì thực chất đang chạy rule-based — nhãn `mcp` chỉ nghĩa là đã thử, không đảm bảo TCBS thật sự trả dữ liệu.
 
+Lệnh MCP báo `timeout` (LLM gọi nhiều tool TCBS lâu hơn ngưỡng mặc định 240s, tự rớt về text-mode) — nới ngưỡng qua env `VN_MCP_TIMEOUT` (giây):
+
+VN_MCP_TIMEOUT=600 .venv/bin/python run.py daily --group VN30 --require-mcp
+
 Báo lỗi lấy dữ liệu / bị chặn tần suất — giãn nhịp rồi chạy lại:
 
 .venv/bin/python run.py screen --group VN30 --throttle 3.0
