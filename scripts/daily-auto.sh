@@ -22,24 +22,32 @@ send() { (cd "$EVERYDAY" && ./node_modules/.bin/tsx scripts/pdf/send-trading-dai
 
 echo "[$(ts)] === daily-auto slot=$SLOT dow=$DOW ===" >>"$LOG"
 
-# Cuối tuần thị trường nghỉ → bỏ qua (tiết kiệm LLM). Mon-Fri mới chạy.
-if [ "$DOW" -ge 6 ]; then
-  echo "[$(ts)] cuối tuần, bỏ qua." >>"$LOG"
-  exit 0
-fi
-
-if [ "$SLOT" = "morning" ]; then
-  HEADER="☀️ Trading sáng $TODAY — xem trước khi đặt LO ~9:15. Số liệu = đóng cửa phiên trước + tin qua đêm."
+if [ "$SLOT" = "crypto" ]; then
+  # Crypto 24/7 → không guard cuối tuần, không TCBS.
+  REPORT="reports/journal/$TODAY-crypto.md"
+  HEADER="₿ Crypto $TODAY — BTC/ETH (agent pipeline). Dữ liệu OHLC Binance/CoinGecko."
+  .venv/bin/python run.py crypto >>"$LOG" 2>&1
+  RC=$?
+  BASENAME="crypto-$TODAY"
 else
-  HEADER="📊 Trading EOD $TODAY — rổ VN30. Đọc để chuẩn bị lệnh phiên sau."
+  # Chứng khoán VN: cuối tuần nghỉ → bỏ qua (tiết kiệm LLM).
+  if [ "$DOW" -ge 6 ]; then
+    echo "[$(ts)] cuối tuần, bỏ qua." >>"$LOG"
+    exit 0
+  fi
+  if [ "$SLOT" = "morning" ]; then
+    HEADER="☀️ Trading sáng $TODAY — xem trước khi đặt LO ~9:15. Số liệu = đóng cửa phiên trước + tin qua đêm."
+  else
+    HEADER="📊 Trading EOD $TODAY — rổ VN30. Đọc để chuẩn bị lệnh phiên sau."
+  fi
+  VN_MCP_TIMEOUT=600 .venv/bin/python run.py daily --group VN30 --require-mcp >>"$LOG" 2>&1
+  RC=$?
+  BASENAME="trading-daily-$TODAY"
 fi
-
-VN_MCP_TIMEOUT=600 .venv/bin/python run.py daily --group VN30 --require-mcp >>"$LOG" 2>&1
-RC=$?
 
 if [ $RC -ne 0 ] || [ ! -f "$REPORT" ]; then
   echo "[$(ts)] FAIL rc=$RC" >>"$LOG"
-  msg="⚠️ Trading daily ($SLOT $TODAY) FAIL (rc=$RC)."
+  msg="⚠️ Trading ($SLOT $TODAY) FAIL (rc=$RC)."
   grep -qiE "tcbs|mcp|authenticate" "$LOG" && msg="$msg TCBS có thể hết hạn → claude /mcp tcbs Authenticate rồi chạy lại."
   grep -qi "everyday" "$LOG" && msg="$msg (hoặc everyday API lỗi — kiểm tra cert/service)."
   msg="$msg Log: $REPO/$LOG"
@@ -47,5 +55,5 @@ if [ $RC -ne 0 ] || [ ! -f "$REPORT" ]; then
   exit "${RC:-1}"
 fi
 
-send --pdf "$REPORT" "trading-daily-$TODAY" "$HEADER"
+send --pdf "$REPORT" "$BASENAME" "$HEADER"
 echo "[$(ts)] OK → sent $REPORT" >>"$LOG"
