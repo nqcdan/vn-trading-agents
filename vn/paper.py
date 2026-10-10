@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from . import vn_data, vn_market
+from . import vn_data, vn_market, crypto_data, market_profile, fx
 from . import portfolio as pf
 
 BOOK_PATH = os.path.join("reports", "paper", "portfolio.json")
@@ -14,20 +14,26 @@ class PaperError(RuntimeError):
     pass
 
 
+def _book_path(asset_class: str = "vn_stock") -> str:
+    if asset_class == "vn_stock":
+        return BOOK_PATH
+    return os.path.join("reports", "paper", f"{asset_class}.json")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _load() -> dict:
-    if not os.path.exists(BOOK_PATH):
-        raise PaperError(f"chưa có sổ paper ở {BOOK_PATH} — chạy paper init trước")
-    with open(BOOK_PATH, encoding="utf-8") as f:
+def _load(path: str = BOOK_PATH) -> dict:
+    if not os.path.exists(path):
+        raise PaperError(f"chưa có sổ paper ở {path} — chạy paper init trước")
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def _save(book: dict) -> dict:
-    os.makedirs(os.path.dirname(BOOK_PATH), exist_ok=True)
-    with open(BOOK_PATH, "w", encoding="utf-8") as f:
+def _save(book: dict, path: str = BOOK_PATH) -> dict:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(book, f, ensure_ascii=False, indent=2)
     return book
 
@@ -44,9 +50,27 @@ def _price_vnd(symbol: str, as_of: str | None = None) -> float | None:
     return float(close) * 1000.0
 
 
+def _price(symbol: str, asset_class: str = "vn_stock", as_of: str | None = None) -> float | None:
+    """Giá 1 đơn vị tài sản theo VND. Cổ phiếu: vn_data ×1000. Crypto: giá USD × tỷ giá USD→VND
+    (hạch toán chung VND với ví/vốn thật từ everyday)."""
+    if asset_class == "vn_stock":
+        return _price_vnd(symbol, as_of)
+    try:
+        ind = crypto_data.get_indicators_crypto(symbol, as_of=as_of)
+    except BaseException:
+        return None
+    close = ind.get("close")
+    if not isinstance(close, (int, float)):
+        return None
+    return float(close) * fx.usd_vnd()
+
+
 def init(asset_class: str = "vn_stock", seed_cash: float | None = None) -> dict:
-    if os.path.exists(BOOK_PATH):
-        raise PaperError(f"sổ paper đã tồn tại ở {BOOK_PATH} — xoá tay nếu muốn init lại")
+    path = _book_path(asset_class)
+    if os.path.exists(path):
+        raise PaperError(f"sổ paper đã tồn tại ở {path} — xoá tay nếu muốn init lại")
+    if asset_class != "vn_stock":
+        return _init_asset(asset_class, path, seed_cash)
 
     snap = pf.analyze_portfolio(asset_class)
     positions: dict[str, dict] = {}
@@ -98,17 +122,107 @@ def init(asset_class: str = "vn_stock", seed_cash: float | None = None) -> dict:
     return _save(book)
 
 
-def inject_cash(amount: float) -> dict:
-    book = _load()
+def _init_asset(asset_class: str, path: str, seed_cash: float | None) -> dict:
+    """Init sổ paper cho asset fractional (crypto): dựng vị thế từ holdings everyday."""
+    try:
+        holdings = pf.fetch_holdings(asset_class)
+    except Exception:
+        holdings = []
+    positions: dict[str, dict] = {}
+    for h in holdings:
+        sym = str(h.get("symbol", "")).upper()
+        qty, cost = h.get("qty"), h.get("costBasis")
+        if not sym or not qty:
+            continue
+        avg = float(cost) / float(qty) if cost else (float(h.get("marketValue") or 0) / float(qty))
+        positions[sym] = {"qty": float(qty), "avg_cost": round(avg, 6)}
+    if seed_cash is not None:
+        cash = float(seed_cash)
+    else:
+        try:
+            cash = float(pf.fetch_cash(("bank",)).get("total", 0))
+        except Exception:
+            cash = 0.0
+    book = {
+        "created": _now(), "asset_class": asset_class, "cash": cash, "positions": positions,
+        "trades": [], "cash_injections": [],
+        "init_snapshot": {"cash": cash, "positions": {s: dict(v) for s, v in positions.items()}},
+    }
+    return _save(book, path)
+
+
+def inject_cash(amount: float, asset_class: str = "vn_stock") -> dict:
+    path = _book_path(asset_class)
+    book = _load(path)
     amount = float(amount)
     book["cash"] = float(book["cash"]) + amount
     book["cash_injections"] = list(book.get("cash_injections", [])) + [
         {"ts": _now(), "amount": amount}
     ]
-    return _save(book)
+    return _save(book, path)
 
 
-def apply(acts: list[dict]) -> dict:
+def _apply_asset(acts: list[dict], asset_class: str, path: str) -> dict:
+    """Apply lệnh cho asset fractional (crypto): qty lẻ, phí theo profile, không thuế/lô."""
+    prof = market_profile.get(asset_class)
+    book = _load(path)
+    cash = float(book["cash"])
+    positions = {s: dict(v) for s, v in book.get("positions", {}).items()}
+    trades = list(book.get("trades", []))
+    warnings: list[str] = []
+    for a in acts:
+        action = str(a.get("action", "")).upper()
+        sym = str(a.get("symbol", "")).upper()
+        qty = float(a.get("qty", 0) or 0)
+        price = float(a.get("price", 0) or 0)
+        if action == "HOLD" or qty <= 0 or price <= 0 or not sym:
+            continue
+        if action == "BUY":
+            cost = market_profile.buy_cost(prof, price, qty)
+            if cost > cash:
+                qty = max(0.0, cash / (price * (1 + prof.slippage) * (1 + prof.buy_fee)))
+                qty = round(qty, 8)
+                if qty <= 0:
+                    warnings.append(f"{sym}: thiếu tiền, bỏ lệnh mua")
+                    continue
+                warnings.append(f"{sym}: thiếu tiền, giảm còn {qty}")
+                cost = market_profile.buy_cost(prof, price, qty)
+            fee = cost - price * qty
+            cash -= cost
+            pos = positions.get(sym, {"qty": 0.0, "avg_cost": 0.0})
+            new_qty = float(pos["qty"]) + qty
+            new_avg = (float(pos["qty"]) * float(pos["avg_cost"]) + qty * price) / new_qty
+            positions[sym] = {"qty": round(new_qty, 8), "avg_cost": round(new_avg, 6)}
+            trades.append({"ts": _now(), "action": "BUY", "symbol": sym, "qty": qty,
+                           "price": price, "fee": round(fee, 2), "tax": 0.0,
+                           "cash_after": round(cash, 2)})
+        elif action == "SELL":
+            pos = positions.get(sym)
+            held = float(pos["qty"]) if pos else 0.0
+            if held <= 0:
+                warnings.append(f"{sym}: không có vị thế để bán")
+                continue
+            qty = min(qty, held)
+            proceeds = market_profile.sell_proceeds(prof, price, qty)
+            cash += proceeds
+            rem = held - qty
+            if rem <= 1e-12:
+                positions.pop(sym, None)
+            else:
+                positions[sym] = {"qty": round(rem, 8), "avg_cost": pos["avg_cost"]}
+            trades.append({"ts": _now(), "action": "SELL", "symbol": sym, "qty": qty,
+                           "price": price, "fee": round(price * qty * prof.sell_fee, 2),
+                           "tax": 0.0, "cash_after": round(cash, 2)})
+    book["cash"] = round(cash, 2)
+    book["positions"] = positions
+    book["trades"] = trades
+    _save(book, path)
+    return {"book": book, "warnings": warnings}
+
+
+def apply(acts: list[dict], asset_class: str = "vn_stock") -> dict:
+    if asset_class != "vn_stock":
+        return _apply_asset(acts, asset_class, _book_path(asset_class))
     book = _load()
     cash = float(book["cash"])
     positions = {s: dict(v) for s, v in book.get("positions", {}).items()}
@@ -190,16 +304,17 @@ def apply(acts: list[dict]) -> dict:
     return {"book": book, "warnings": warnings}
 
 
-def _mark_positions(positions: dict, cash: float, as_of: str | None = None) -> dict:
+def _mark_positions(positions: dict, cash: float, as_of: str | None = None,
+                    asset_class: str = "vn_stock") -> dict:
     marked = []
     notes = []
     mv_total = 0.0
     for sym, pos in positions.items():
-        px = _price_vnd(sym, as_of)
+        px = _price(sym, asset_class, as_of)
         if px is None:
             notes.append(f"{sym}: không lấy được giá, bỏ khỏi mark")
             continue
-        qty = int(pos["qty"])
+        qty = float(pos["qty"]) if asset_class != "vn_stock" else int(pos["qty"])
         avg = float(pos["avg_cost"])
         mv = px * qty
         mv_total += mv
@@ -216,22 +331,22 @@ def _mark_positions(positions: dict, cash: float, as_of: str | None = None) -> d
     }
 
 
-def mark(as_of: str | None = None) -> dict:
-    book = _load()
-    return _mark_positions(book.get("positions", {}), float(book["cash"]), as_of)
+def mark(as_of: str | None = None, asset_class: str = "vn_stock") -> dict:
+    book = _load(_book_path(asset_class))
+    return _mark_positions(book.get("positions", {}), float(book["cash"]), as_of, asset_class)
 
 
-def score() -> dict:
-    book = _load()
+def score(asset_class: str = "vn_stock") -> dict:
+    book = _load(_book_path(asset_class))
     trades = book.get("trades", [])
     injections = book.get("cash_injections", [])
     total_injected = sum(float(i.get("amount", 0)) for i in injections)
 
-    agent = _mark_positions(book.get("positions", {}), float(book["cash"]))
+    agent = _mark_positions(book.get("positions", {}), float(book["cash"]), asset_class=asset_class)
 
     snap = book.get("init_snapshot", {})
     hold_cash = float(snap.get("cash", 0)) + total_injected
-    hold = _mark_positions(snap.get("positions", {}), hold_cash)
+    hold = _mark_positions(snap.get("positions", {}), hold_cash, asset_class=asset_class)
 
     fees = sum(float(t.get("fee", 0)) + float(t.get("tax", 0)) for t in trades)
 
@@ -247,17 +362,24 @@ def score() -> dict:
         "notes": list(agent["notes"]) + list(hold["notes"]),
     }
 
-    vnindex_px = _price_vnd("VNINDEX")
-    if vnindex_px is None:
-        try:
-            ind = vn_data.get_indicators("VNINDEX")
-            c = ind.get("close")
-            vnindex_px = float(c) if isinstance(c, (int, float)) else None
-        except BaseException:
-            vnindex_px = None
-    if vnindex_px is None:
-        out["notes"].append("không lấy được VNINDEX")
+    if asset_class == "vn_stock":
+        vnindex_px = _price_vnd("VNINDEX")
+        if vnindex_px is None:
+            try:
+                ind = vn_data.get_indicators("VNINDEX")
+                c = ind.get("close")
+                vnindex_px = float(c) if isinstance(c, (int, float)) else None
+            except BaseException:
+                vnindex_px = None
+        if vnindex_px is None:
+            out["notes"].append("không lấy được VNINDEX")
+        else:
+            out["vnindex"] = round(vnindex_px, 2)
     else:
-        out["vnindex"] = round(vnindex_px, 2)
+        btc = _price("BTC", asset_class)
+        if btc is None:
+            out["notes"].append("không lấy được BTC benchmark")
+        else:
+            out["btc"] = round(btc, 2)
 
     return out

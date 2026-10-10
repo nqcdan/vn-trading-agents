@@ -56,6 +56,12 @@ def _fmt_usd(v) -> str:
     return f"${v:,.2f}" if v < 100 else f"${v:,.0f}"
 
 
+def _fmt_vnd(v) -> str:
+    if v is None:
+        return "—"
+    return f"{int(v):,}đ".replace(",", ".")
+
+
 def render_crypto(res: dict, date: str) -> str:
     out = [f"# BÁO CÁO CRYPTO {date}", ""]
     if res.get("ref"):
@@ -69,11 +75,11 @@ def render_crypto(res: dict, date: str) -> str:
 
     hold = res.get("holdings")
     if hold:
-        out += ["## 1. Danh mục crypto hiện tại", "",
+        out += ["## 1. Danh mục crypto hiện tại _(giá trị VND, nguồn everyday)_", "",
                 "| Mã | SL | Giá vốn | Giá TT | P&L |", "| :-- | --: | --: | --: | --: |"]
         for h in hold:
-            out.append(f"| {h['symbol']} | {h.get('qty')} | {_fmt_usd(h.get('costBasis'))} | "
-                       f"{_fmt_usd(h.get('marketValue'))} | {h.get('pnlPct')}% |")
+            out.append(f"| {h['symbol']} | {h.get('qty')} | {_fmt_vnd(h.get('costBasis'))} | "
+                       f"{_fmt_vnd(h.get('marketValue'))} | {h.get('pnlPct')}% |")
         out.append("")
 
     out += ["## 2. Tín hiệu & quyết định", "",

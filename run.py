@@ -342,29 +342,31 @@ def _paper_agent(a, kind):
 
 def cmd_paper(a):
     act = a.action
+    ac = getattr(a, "asset_class", "vn_stock")
+    unit = "đ"  # hạch toán chung VND (crypto quy đổi giá USD→VND theo tỷ giá)
     if act == "init":
         try:
-            book = paper.init(a.asset_class, seed_cash=a.seed_cash)
+            book = paper.init(ac, seed_cash=a.seed_cash)
         except paper.PaperError as e:
             print(f"Lỗi: {e}")
-            print("Xoá sổ cũ nếu muốn init lại: rm reports/paper/portfolio.json")
+            print(f"Xoá sổ cũ nếu muốn init lại: rm {paper._book_path(ac)}")
             return
-        print(f"✓ Khởi tạo sổ paper ({a.asset_class}).")
-        print(f"Tiền mặt seed: {book['cash']:,.0f}đ | {len(book['positions'])} vị thế")
+        print(f"✓ Khởi tạo sổ paper ({ac}).")
+        print(f"Tiền mặt seed: {book['cash']:,.0f}{unit} | {len(book['positions'])} vị thế")
         for s, v in book["positions"].items():
-            print(f"  {s}: {v['qty']} cp @ {v['avg_cost']:,.0f}")
+            print(f"  {s}: {v['qty']} @ {v['avg_cost']:,.4f}")
     elif act == "cash":
-        book = paper.inject_cash(a.amount)
-        print(f"✓ Nạp {a.amount:,.0f}đ. Tiền mặt mới: {book['cash']:,.0f}đ")
+        book = paper.inject_cash(a.amount, asset_class=ac)
+        print(f"✓ Nạp {a.amount:,.0f}{unit}. Tiền mặt mới: {book['cash']:,.0f}{unit}")
     elif act == "mark":
-        _print_mark(paper.mark())
+        _print_mark(paper.mark(asset_class=ac))
     elif act == "score":
-        s = paper.score()
+        s = paper.score(ac)
         print("\n=== Scorecard paper (3 đường benchmark) ===")
-        print(f"{'Agent (đã giao dịch)':28} {s['agent_nav']:>16,.0f}đ")
-        print(f"{'Giữ nguyên (không đụng)':28} {s['hold_nav']:>16,.0f}đ")
-        vni = s.get("vnindex")
-        print(f"{'VNINDEX (điểm)':28} " + (f"{vni:>16,.0f}" if vni is not None else f"{'—':>16}"))
+        print(f"{'Agent (đã giao dịch)':28} {s['agent_nav']:>16,.0f}{unit}")
+        print(f"{'Giữ nguyên (không đụng)':28} {s['hold_nav']:>16,.0f}{unit}")
+        bench = ("BTC", s.get("btc")) if ac != "vn_stock" else ("VNINDEX (điểm)", s.get("vnindex"))
+        print(f"{bench[0]:28} " + (f"{bench[1]:>16,.0f}" if bench[1] is not None else f"{'—':>16}"))
         print(f"\nTiền mặt: {s['cash_now']:,.0f}đ | đã nạp thêm: {s['cash_injected']:,.0f}đ")
         print(f"Tổng phí+thuế: {s['total_fees_tax']:,.0f}đ | số lệnh (turnover): {s['turnover_trades']}")
         for n in s.get("notes", []):
@@ -480,8 +482,11 @@ def main():
     pi.add_argument("--seed-cash", type=float, default=None, help="tiền mặt seed (mặc định số dư ví bank)")
     pc = psub.add_parser("cash", help="nạp thêm tiền mặt vào sổ")
     pc.add_argument("amount", type=float)
-    psub.add_parser("mark", help="định giá sổ hiện tại: NAV + P&L từng vị thế")
-    psub.add_parser("score", help="scorecard: agent vs giữ nguyên vs VNINDEX + phí/turnover")
+    pc.add_argument("--asset-class", default="vn_stock")
+    pm = psub.add_parser("mark", help="định giá sổ hiện tại: NAV + P&L từng vị thế")
+    pm.add_argument("--asset-class", default="vn_stock")
+    psc = psub.add_parser("score", help="scorecard: agent vs giữ nguyên vs VNINDEX/BTC + phí/turnover")
+    psc.add_argument("--asset-class", default="vn_stock")
     for name in ("advise", "watch"):
         pag = psub.add_parser(name, help=f"agent {name} → auto-apply vào sổ paper + đo chi phí LLM")
         pag.add_argument("--group", default="VN30")
