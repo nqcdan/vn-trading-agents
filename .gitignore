@@ -12,3 +12,6 @@ PROFILE.md
 reports/
 portfolio.sh
 advise.sh
+
+# Log runtime (launchd + daily-auto)
+logs/
