@@ -359,7 +359,7 @@ def render(res: dict) -> str:
 
 def render_daily(res: dict, triggers: list[dict], date: str,
                  macro: dict | None = None, news_map: dict | None = None,
-                 holdings: list[dict] | None = None) -> str:
+                 holdings: list[dict] | None = None, market_line: str | None = None) -> str:
     """Báo cáo NGÀY (markdown): vĩ mô + danh mục + cảnh báo + quyết định/giải ngân + tin
     từng mã + xếp hạng cả rổ + phân tích. Layout deterministic, render đẹp mọi viewer .md."""
     if "error" in res:
@@ -368,6 +368,8 @@ def render_daily(res: dict, triggers: list[dict], date: str,
     budget = _money(_budget(res))
     out = [f"# BÁO CÁO NGÀY {date} · rổ {res.get('group', '?')}", "",
            f"**Nguồn:** {res.get('mode', '?')} · **Ngân sách:** {budget}", ""]
+    if market_line:
+        out += [market_line, ""]
     if macro:
         out += [render_macro(macro), ""]
     if holdings:

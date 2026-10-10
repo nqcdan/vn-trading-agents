@@ -12,7 +12,7 @@ import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
                 tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table,
-                news_digest)
+                news_digest, market_refs)
 
 
 def _print(obj):
@@ -198,6 +198,7 @@ def cmd_daily(a):
     news_syms = list(dict.fromkeys(held_syms + [s for s in res.get("shortlist", []) if s not in held_syms]))
     macro = news_digest.macro_digest()
     news_map = news_digest.symbols_news(news_syms)
+    market_line = market_refs.market_refs_line()
     try:
         holdings = pf.fetch_holdings(a.asset_class) if not a.holdings else None
     except pf.PortfolioError:
@@ -209,7 +210,7 @@ def cmd_daily(a):
     date = f"{datetime.datetime.now():%Y-%m-%d}"
     detail_no = 6 if holdings else 5
     report = (decision_table.render_daily(res, triggers, date, macro=macro, news_map=news_map,
-                                          holdings=holdings)
+                                          holdings=holdings, market_line=market_line)
               + f"\n\n## {detail_no}. Phân tích chi tiết (TCBS real-time)\n\n"
               + decision_table.strip_json(res["plan"])
               + "\n\n" + decision_table.render_glossary())
