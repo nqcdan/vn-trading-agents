@@ -15,6 +15,8 @@ def _ind(close, sma20, sma50, rsi):
 
 
 def test_analyze_crypto_uses_crypto_data(monkeypatch):
+    from vn import crypto_news
+    monkeypatch.setattr(crypto_news, "fetch_market_crypto", lambda: [])  # sentiment/macro neutral, offline
     monkeypatch.setattr(crypto_data, "get_indicators_crypto",
                         lambda *a, **k: _ind(83000, 80000, 78000, 55.0))
     res = agents.analyze("BTC", asset_class="crypto")

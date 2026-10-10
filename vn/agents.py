@@ -8,7 +8,7 @@ import json
 import os
 import textwrap
 
-from . import vn_data, vn_market, vn_news, crypto_data, market_profile
+from . import vn_data, vn_market, vn_news, crypto_data, crypto_news, market_profile
 from .profile import profile_system
 
 VN_MARKET_RULES = textwrap.dedent(
@@ -243,15 +243,14 @@ def risk_manager(decision: dict, ind: dict, macro: dict | None = None) -> dict:
 
 # ---------- Orchestrator ----------
 
-def crypto_sentiment(symbol: str, limit: int = 12) -> dict:
-    """Tâm lý tin crypto cho 1 coin. Stage 4 thay bằng feed crypto thật; tạm neutral."""
-    return {"agent": "sentiment", "signal": "NEUTRAL", "score": 0, "net": 0, "n": 0,
-            "headlines": []}
+def crypto_sentiment(symbol: str, limit: int = 12, market: list[dict] | None = None) -> dict:
+    """Tâm lý tin crypto cho 1 coin (feed EN CoinTelegraph/Decrypt…)."""
+    return crypto_news.sentiment_crypto(symbol, limit=limit, market=market)
 
 
 def crypto_macro() -> dict:
-    """Tâm lý vĩ mô crypto. Stage 4 thay bằng feed crypto thật; tạm neutral."""
-    return {"agent": "macro", "signal": "NEUTRAL", "net": 0}
+    """Tâm lý vĩ mô crypto suy từ headline tin crypto tổng."""
+    return crypto_news.macro_mood_crypto()
 
 
 def analyze(symbol: str, as_of: str | None = None, asset_class: str = "vn_stock") -> dict:

@@ -60,6 +60,10 @@ def render_crypto(res: dict, date: str) -> str:
     out = [f"# BÁO CÁO CRYPTO {date}", ""]
     if res.get("ref"):
         out += [f"**Giá tham chiếu:** {res['ref']}", ""]
+    macro = next((a.get("macro") for a in res["analyses"] if a.get("macro")), None)
+    if macro:
+        out += [f"**Tâm lý tin crypto:** {_ICON.get(macro.get('signal'),'')} {macro.get('signal')} "
+                f"· net {macro.get('net')} · {macro.get('n', 0)} tin _(feed EN)_", ""]
     if res.get("budget") is not None:
         out += [f"**Ngân sách (ví bank):** {int(res['budget']):,}đ".replace(",", "."), ""]
 
@@ -100,6 +104,10 @@ def render_crypto(res: dict, date: str) -> str:
                 f"- Giá {_fmt_usd(ind.get('close'))} · RSI {ind.get('rsi14')} · "
                 f"ret20d {ind.get('ret20d_pct')}% · vol20d {ind.get('vol20d_pct')}%",
                 f"- Kỹ thuật: {a['technical']['signal']} — {'; '.join(a['technical']['notes'])}",
+                f"- Tin tức: {a['sentiment'].get('signal','NEUTRAL')} (net {a['sentiment'].get('net',0)}, "
+                f"{a['sentiment'].get('n',0)} tin)"
+                + (" · " + " | ".join(a['sentiment'].get('headlines', [])[:2])
+                   if a['sentiment'].get('headlines') else ""),
                 f"- Lý do: {d.get('reason','')}",
                 f"- Rủi ro: {a['risk'].get('note','')}"]
         deb = a.get("debate", {})
