@@ -12,7 +12,7 @@ import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
                 tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table,
-                news_digest, market_refs)
+                news_digest, market_refs, crypto_cmd)
 
 
 def _print(obj):
@@ -172,6 +172,22 @@ def cmd_advise(a):
         print(f"→ báo cáo: {saved[:-5]}.md")
     if a.json:
         _print(res)
+
+
+def cmd_crypto(a):
+    """Báo cáo crypto (BTC/ETH…): full agent pipeline + danh mục thật everyday (asset_class=crypto).
+    Lưu `{date}-crypto.md`, chạy lại ghi đè."""
+    agents.cost_reset()
+    syms = [s.strip().upper() for s in a.symbols.split(",")] if a.symbols else None
+    res = crypto_cmd.run_crypto(symbols=syms, holdings_csv=a.holdings, cash=a.cash)
+    snap = agents.cost_snapshot()
+    date = f"{datetime.datetime.now():%Y-%m-%d}"
+    report = crypto_cmd.render_crypto(res, date)
+    print("\n" + report)
+    print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
+    saved = journal.record("crypto", {**res, "cost": snap}, summary_md=report)
+    if saved:
+        print(f"→ báo cáo: {saved[:-5]}.md")
 
 
 def cmd_daily(a):
@@ -434,6 +450,12 @@ def main():
     pdl.add_argument("--throttle", type=float, default=2.2)
     pdl.add_argument("--json", action="store_true")
     pdl.set_defaults(func=cmd_daily)
+
+    pcr = sub.add_parser("crypto", help="BÁO CÁO CRYPTO (BTC/ETH): agent pipeline + danh mục thật everyday")
+    pcr.add_argument("--symbols", default=None, help="'BTC,ETH,SOL' (không có → VN_CRYPTO_SYMBOLS hoặc BTC,ETH)")
+    pcr.add_argument("--holdings", default=None, help="'BTC:0.1,ETH:2' (không có → everyday asset_class=crypto)")
+    pcr.add_argument("--cash", default=None, help="ngân sách (không có → ví bank realtime everyday)")
+    pcr.set_defaults(func=cmd_crypto)
 
     pw = sub.add_parser("watch", help="máy quét EOD: im lặng khi không có việc, đề xuất rotate/giải ngân")
     pw.add_argument("--asset-class", default="vn_stock", help="vn_stock | vn_fund | crypto")
