@@ -28,6 +28,8 @@ def memoize(namespace: str, key: str, producer, as_of: str | None = None):
         except (OSError, ValueError):
             pass
     result = producer()
+    if _no_cache():
+        return result  # VN_NO_CACHE: bỏ qua cache hoàn toàn (không đọc, KHÔNG ghi)
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
