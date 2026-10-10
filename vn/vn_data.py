@@ -37,31 +37,38 @@ def _rsi(series: pd.Series, period: int = 14) -> float:
     return 100 - 100 / (1 + rs)
 
 
+def indicators_from_ohlcv(df: pd.DataFrame, symbol: str) -> dict:
+    """Tính chỉ báo kỹ thuật từ DataFrame OHLCV chuẩn (date,close,volume).
+
+    Asset-agnostic: cổ phiếu VN lẫn crypto dùng chung (chỉ cần schema OHLCV).
+    """
+    if df is None or df.empty:
+        return {"error": "no price data"}
+    close = df["close"]
+    last = float(close.iloc[-1])
+    sma20 = float(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else float("nan")
+    sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else float("nan")
+    ret20 = float(last / close.iloc[-21] - 1) if len(close) > 21 else float("nan")
+    vol20 = float(close.pct_change().rolling(20).std().iloc[-1]) if len(close) >= 21 else float("nan")
+    avg_vol = float(df["volume"].tail(20).mean())
+    return {
+        "symbol": symbol.upper(),
+        "as_of": str(df["date"].iloc[-1].date()),
+        "close": round(last, 2),
+        "sma20": round(sma20, 2) if not math.isnan(sma20) else None,
+        "sma50": round(sma50, 2) if not math.isnan(sma50) else None,
+        "rsi14": round(_rsi(close), 1),
+        "ret20d_pct": round(ret20 * 100, 1) if not math.isnan(ret20) else None,
+        "vol20d_pct": round(vol20 * 100, 2) if not math.isnan(vol20) else None,
+        "avg_vol20": int(avg_vol),
+    }
+
+
 def get_indicators(symbol: str, as_of: str | None = None, lookback_days: int = 200) -> dict:
     def _compute() -> dict:
         end = as_of or date.today().isoformat()
         start = (date.fromisoformat(end) - timedelta(days=lookback_days * 2)).isoformat()
-        df = get_ohlcv(symbol, start, end)
-        if df.empty:
-            return {"error": "no price data"}
-        close = df["close"]
-        last = float(close.iloc[-1])
-        sma20 = float(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else float("nan")
-        sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else float("nan")
-        ret20 = float(last / close.iloc[-21] - 1) if len(close) > 21 else float("nan")
-        vol20 = float(close.pct_change().rolling(20).std().iloc[-1]) if len(close) >= 21 else float("nan")
-        avg_vol = float(df["volume"].tail(20).mean())
-        return {
-            "symbol": symbol.upper(),
-            "as_of": str(df["date"].iloc[-1].date()),
-            "close": round(last, 2),
-            "sma20": round(sma20, 2) if not math.isnan(sma20) else None,
-            "sma50": round(sma50, 2) if not math.isnan(sma50) else None,
-            "rsi14": round(_rsi(close), 1),
-            "ret20d_pct": round(ret20 * 100, 1) if not math.isnan(ret20) else None,
-            "vol20d_pct": round(vol20 * 100, 2) if not math.isnan(vol20) else None,
-            "avg_vol20": int(avg_vol),
-        }
+        return indicators_from_ohlcv(get_ohlcv(symbol, start, end), symbol)
 
     return cache.memoize("indicators", symbol.upper(), _compute, as_of=as_of)
 
