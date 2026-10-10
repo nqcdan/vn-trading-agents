@@ -8,7 +8,7 @@ import json
 import os
 import textwrap
 
-from . import vn_data, vn_market, vn_news
+from . import vn_data, vn_market, vn_news, crypto_data, market_profile
 from .profile import profile_system
 
 VN_MARKET_RULES = textwrap.dedent(
@@ -186,16 +186,19 @@ def bull_bear_debate(symbol: str, ta: dict, fa: dict) -> dict:
 
 # ---------- Trader ----------
 
-def trader(symbol: str, ta: dict, fa: dict, debate: dict, se: dict | None = None) -> dict:
+def trader(symbol: str, ta: dict, fa: dict, debate: dict, se: dict | None = None,
+           profile=None) -> dict:
+    rules = profile.rules_text if profile else VN_MARKET_RULES
+    system = profile.system_prompt if profile else _DEFAULT_SYS
     total = ta["score"] + fa["score"] + (se["score"] if se else 0)
     if _llm_available():
         raw = _llm(
             f"Mã {symbol}. Tổng hợp:\n- BULL: {debate['bull']}\n- BEAR: {debate['bear']}\n"
             f"- Điểm kỹ thuật {ta['score']}, cơ bản {fa['score']}"
-            + (f", tin tức {se['score']} ({se['signal']})" if se else "") + f".\n{VN_MARKET_RULES}\n"
+            + (f", tin tức {se['score']} ({se['signal']})" if se else "") + f".\n{rules}\n"
             "Ra quyết định cuối (hợp khẩu vị hồ sơ NĐT). CHỈ trả JSON: "
             '{\"action\":\"BUY|HOLD|SELL\",\"confidence\":0-1,\"reason\":\"...\"}',
-            system=profile_system(_DEFAULT_SYS),
+            system=profile_system(system),
             max_tokens=300,
         )
         try:
@@ -240,19 +243,40 @@ def risk_manager(decision: dict, ind: dict, macro: dict | None = None) -> dict:
 
 # ---------- Orchestrator ----------
 
-def analyze(symbol: str, as_of: str | None = None) -> dict:
-    ind = vn_data.get_indicators(symbol, as_of=as_of)
-    fund = vn_data.get_fundamentals(symbol)
+def crypto_sentiment(symbol: str, limit: int = 12) -> dict:
+    """Tâm lý tin crypto cho 1 coin. Stage 4 thay bằng feed crypto thật; tạm neutral."""
+    return {"agent": "sentiment", "signal": "NEUTRAL", "score": 0, "net": 0, "n": 0,
+            "headlines": []}
+
+
+def crypto_macro() -> dict:
+    """Tâm lý vĩ mô crypto. Stage 4 thay bằng feed crypto thật; tạm neutral."""
+    return {"agent": "macro", "signal": "NEUTRAL", "net": 0}
+
+
+def analyze(symbol: str, as_of: str | None = None, asset_class: str = "vn_stock") -> dict:
+    profile = market_profile.get(asset_class)
+    if asset_class == "crypto":
+        ind = crypto_data.get_indicators_crypto(symbol, as_of=as_of)
+        fund = {"note": "crypto — không có chỉ số cơ bản P/E/ROE"}
+        se = crypto_sentiment(symbol)
+        macro = crypto_macro()
+        exchange, price_limit_pct = None, None
+    else:
+        ind = vn_data.get_indicators(symbol, as_of=as_of)
+        fund = vn_data.get_fundamentals(symbol)
+        se = sentiment_analyst(symbol)
+        macro = macro_mood()
+        exchange = vn_market.detect_exchange(symbol)
+        price_limit_pct = round(vn_market.price_limit(symbol) * 100, 1)
     ta = technical_analyst(ind)
     fa = fundamental_analyst(fund)
-    se = sentiment_analyst(symbol)
-    macro = macro_mood()
     debate = bull_bear_debate(symbol, ta, fa)
-    decision = trader(symbol, ta, fa, debate, se)
+    decision = trader(symbol, ta, fa, debate, se, profile=profile)
     risk = risk_manager(decision, ind, macro)
     return {
-        "symbol": symbol.upper(), "exchange": vn_market.detect_exchange(symbol),
-        "price_limit_pct": round(vn_market.price_limit(symbol) * 100, 1),
+        "symbol": symbol.upper(), "asset_class": asset_class, "exchange": exchange,
+        "price_limit_pct": price_limit_pct,
         "indicators": ind, "fundamentals": fund,
         "technical": ta, "fundamental": fa, "sentiment": se, "macro": macro,
         "debate": debate, "trader_decision": decision, "risk": risk,
