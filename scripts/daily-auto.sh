@@ -16,15 +16,16 @@ mkdir -p logs
 TODAY="$(date +%F)"
 DOW="$(date +%u)"          # 1=Mon .. 7=Sun
 LOG="logs/daily-auto-$TODAY.log"
-REPORT="reports/journal/$TODAY-daily.md"
+REPORT="$REPO/reports/journal/$TODAY-daily.md"   # tuyệt đối: send() cd sang $EVERYDAY
 ts() { date "+%Y-%m-%d %H:%M:%S"; }
-send() { (cd "$EVERYDAY" && ./node_modules/.bin/tsx scripts/pdf/send-trading-daily.mts "$@") >>"$REPO/$LOG" 2>&1 || true; }
+# send(): chạy tsx trong $EVERYDAY; trả exit thật (không nuốt) để caller biết gửi có thành công.
+send() { (cd "$EVERYDAY" && ./node_modules/.bin/tsx scripts/pdf/send-trading-daily.mts "$@") >>"$REPO/$LOG" 2>&1; }
 
 echo "[$(ts)] === daily-auto slot=$SLOT dow=$DOW ===" >>"$LOG"
 
 if [ "$SLOT" = "crypto" ]; then
   # Crypto 24/7 → không guard cuối tuần, không TCBS.
-  REPORT="reports/journal/$TODAY-crypto.md"
+  REPORT="$REPO/reports/journal/$TODAY-crypto.md"
   HEADER="₿ Crypto $TODAY — BTC/ETH (agent pipeline). Dữ liệu OHLC Binance/CoinGecko."
   .venv/bin/python run.py crypto >>"$LOG" 2>&1
   RC=$?
@@ -55,5 +56,10 @@ if [ $RC -ne 0 ] || [ ! -f "$REPORT" ]; then
   exit "${RC:-1}"
 fi
 
-send --pdf "$REPORT" "$BASENAME" "$HEADER"
-echo "[$(ts)] OK → sent $REPORT" >>"$LOG"
+if send --pdf "$REPORT" "$BASENAME" "$HEADER"; then
+  echo "[$(ts)] OK → sent $REPORT" >>"$LOG"
+else
+  echo "[$(ts)] báo cáo OK nhưng GỬI TELEGRAM LỖI" >>"$LOG"
+  send --text "⚠️ Báo cáo $SLOT $TODAY đã tạo nhưng gửi Telegram lỗi. Xem $REPO/$LOG" || true
+  exit 1
+fi
