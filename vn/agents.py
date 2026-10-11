@@ -46,8 +46,19 @@ def _cost_add(wall_s: float) -> None:
     _COST["wall_s"] += wall_s
 
 
-def _backend() -> str:
-    """api (ANTHROPIC_API_KEY) | claude-cli (subscription) | off. VN_LLM_BACKEND ép chọn."""
+# Per-tier (port upstream #1440): quick = analyst/debate (nhiều, rẻ), deep = trader (quyết định).
+_TIER_ENV = {"quick": "VN_QUICK", "deep": "VN_DEEP"}
+
+
+def _backend(tier: str | None = None) -> str:
+    """api (ANTHROPIC_API_KEY) | claude-cli (subscription) | off.
+
+    Tier có VN_{QUICK,DEEP}_BACKEND riêng → ép chọn cho tier đó; unset → VN_LLM_BACKEND; else auto.
+    """
+    if tier:
+        t = os.environ.get(f"{_TIER_ENV[tier]}_BACKEND", "").lower()
+        if t and t != "auto":
+            return t
     forced = os.environ.get("VN_LLM_BACKEND", "auto").lower()
     if forced != "auto":
         return forced
@@ -56,6 +67,14 @@ def _backend() -> str:
     if shutil.which("claude"):
         return "claude-cli"
     return "off"
+
+
+def _resolve_model(tier: str, backend: str) -> str:
+    """Model cho tier: VN_{QUICK,DEEP}_MODEL → VN_LLM_MODEL → default theo backend."""
+    m = os.environ.get(f"{_TIER_ENV[tier]}_MODEL") or os.environ.get("VN_LLM_MODEL")
+    if m:
+        return m
+    return "sonnet" if backend == "claude-cli" else "claude-sonnet-4-6"
 
 
 def _llm_available() -> bool:
@@ -71,8 +90,7 @@ _NO_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep",
 _LLM_TIMEOUT = int(os.environ.get("VN_LLM_TIMEOUT", "180"))
 
 
-def _llm_via_cli(prompt: str, system: str, timeout: int = _LLM_TIMEOUT) -> str:
-    model = os.environ.get("VN_LLM_MODEL", "sonnet")
+def _llm_via_cli(prompt: str, system: str, timeout: int = _LLM_TIMEOUT, model: str = "sonnet") -> str:
     cmd = ["claude", "-p", prompt, "--model", model,
            "--append-system-prompt", (system or _DEFAULT_SYS) + _CLI_SYS_GUARD,
            "--strict-mcp-config", "--disallowed-tools", *_NO_TOOLS]
@@ -89,13 +107,14 @@ def _llm_via_cli(prompt: str, system: str, timeout: int = _LLM_TIMEOUT) -> str:
     return r.stdout.strip()
 
 
-def _llm(prompt: str, system: str = "", max_tokens: int = 700, timeout: int = _LLM_TIMEOUT) -> str:
-    backend = _backend()
+def _llm(prompt: str, system: str = "", max_tokens: int = 700, timeout: int = _LLM_TIMEOUT,
+         tier: str = "quick") -> str:
+    backend = _backend(tier)
+    model = _resolve_model(tier, backend)
     if backend == "claude-cli":
-        return _llm_via_cli(prompt, system, timeout)
+        return _llm_via_cli(prompt, system, timeout, model=model)
     import anthropic
     client = anthropic.Anthropic()
-    model = os.environ.get("VN_LLM_MODEL", "claude-sonnet-4-6")
     msg = client.messages.create(
         model=model, max_tokens=max_tokens,
         system=system or _DEFAULT_SYS,
@@ -200,6 +219,7 @@ def trader(symbol: str, ta: dict, fa: dict, debate: dict, se: dict | None = None
             '{\"action\":\"BUY|HOLD|SELL\",\"confidence\":0-1,\"reason\":\"...\"}',
             system=profile_system(system),
             max_tokens=300,
+            tier="deep",
         )
         try:
             start, end = raw.find("{"), raw.rfind("}")
