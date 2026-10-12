@@ -77,13 +77,13 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 
 Nhịp thiết kế của `daily`: chạy cuối ngày, đọc quyết định, đặt lệnh vào phiên sáng hôm sau (swing theo ngày, không lướt intraday).
 
-1. **~18:00 (sau phiên, tối)** chạy `daily` → đọc báo cáo. Chạy sau ~15:30 để giá đóng cửa, khối ngoại ròng, RSI/SMA của ngày đã chốt; buổi tối có thêm tin phân tích sau phiên.
-2. **Chốt danh sách lệnh** — mã + giá LO + số lô, tôn trọng chia đợt trong báo cáo (vd "3 lô ngay + 3 lô khi Stoch bật"). Đừng vào hết 1 lần — chia đợt là kiểm soát rủi ro, không phải trang trí.
-3. **Đảm bảo tiền đã ở TK chứng khoán** — ngân sách báo cáo lấy từ ví bank everyday, nhưng đặt lệnh cần tiền nằm sẵn trong TK chứng khoán (chuyển tối trước). Lệnh nào *bán để lấy tiền mua* → tiền bán T+2 mới về, không mua ngay sáng mai bằng tiền đó.
-4. **Sáng mai 9:15 (sau ATO)** đặt lệnh **LO** quanh giá tham chiếu — tránh ATO/MP mù. Giá báo cáo là giá đóng cửa hôm trước; nếu sáng mai gap tăng >2–3% so giá báo cáo thì tín hiệu "điểm vào đẹp" không còn đúng → bỏ hoặc chờ.
-5. **Lệnh khớp → ghi vào sổ paper** (`paper apply` / `paper advise`) để đối chiếu hiệu quả về sau.
+1. **15:30 (tự động)** báo cáo `daily` gửi về Telegram. Không chạy `daily` trong giờ giao dịch (9:00–14:45): giá lấy là giá đang khớp, RSI/SMA tính trên nến chưa xong, giá LO thành giá đuổi. Số liệu 09–10/2026: mua ngay theo báo cáo chạy buổi sáng lãi TB −0,72% so với +0,22% khi đặt LO đúng giá báo cáo ở phiên sau.
+2. **Buổi tối — chốt lệnh** theo bảng **Lệnh đặt cụ thể** ở mục 3 (đã tách lệnh 1 / lệnh 2, giá LO đúng bước giá, tiền gồm phí). Đừng vào hết 1 lần — chia đợt là kiểm soát rủi ro, không phải trang trí.
+3. **Đảm bảo tiền đã ở TK chứng khoán** — ngân sách báo cáo lấy từ ví bank everyday, nhưng đặt lệnh cần tiền nằm sẵn trong TK chứng khoán (chuyển tối trước). Lệnh nào *bán để lấy tiền mua* → tiền bán T+2 mới về, không mua ngay sáng mai bằng tiền đó (bảng lệnh đánh ⚠ khi thiếu tiền).
+4. **Trước 9:00 sáng mai** đặt sẵn LO đúng giá báo cáo (lệnh chờ trước giờ — xem app CTCK có cho đặt từ tối hôm trước không). Lệnh chờ tham gia ATO: giá mở cửa thấp hơn LO thì khớp ở giá mở cửa. Không dùng ATO/MP, không sửa lệnh đuổi giá trong phiên: mã được khuyên mua thường giảm dần từ mở cửa (open→low TB −1,1%, open→close trung vị −0,2%). Gap mở cửa phiên sau nhỏ (TB +0,04%, chỉ 3/63 lệnh >1%) → không cần vội.
+5. **LO hết hiệu lực cuối phiên** — lệnh chưa khớp thì sáng hôm sau đặt lại nếu báo cáo mới vẫn giữ khuyến nghị. Lệnh 2 thấp hơn 1,5%: khớp trong 3 phiên ~70% (44/63); 1,0% ~81%.
 
-**Ghi đè qua đêm:** trước khi bấm lệnh sáng mai, liếc tin thế giới (mục vĩ mô có tin chứng khoán Mỹ). Đêm DJIA/S&P rơi mạnh → VN dễ đỏ → hoãn lệnh mua chờ ổn định. Tín hiệu EOD vẫn valid cho phiên kế, nhưng tin qua đêm là biến số ghi đè.
+**Tin qua đêm (chứng khoán Mỹ):** đêm S&P 500 giảm mạnh **không phải lý do hoãn mua**. Số liệu 720 phiên (08/2023–10/2026): sau đêm S&P ≤ −1,5%, VNINDEX mở cửa TB −0,73% rồi hồi +0,42% trong phiên — giá rẻ nhất thường là lúc mở cửa. Tương quan S&P đêm qua với gap mở cửa VN +0,56, với diễn biến trong phiên ≈ 0. → Giữ nguyên LO đã đặt sẵn, không hoãn, không đuổi. Đêm Mỹ tăng mạnh → VN thường mở cửa cao hơn, LO có thể không khớp — chấp nhận, đừng đuổi. Hoãn chỉ khi có tin xấu riêng của mã hoặc tin vĩ mô trong nước.
 
 ### Các lệnh lẻ (khi cần, không bắt buộc chạy hàng ngày)
 
