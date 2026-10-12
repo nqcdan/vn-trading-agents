@@ -83,6 +83,13 @@ Nhịp thiết kế của `daily`: chạy cuối ngày, đọc quyết định, 
 4. **8:30 sáng mai (tự động)** Telegram gửi phiếu lệnh (bảng Lệnh đặt cụ thể của báo cáo tối qua, không gọi LLM — `run.py orders`). **Trước 9:00** đặt sẵn LO đúng giá báo cáo (lệnh chờ trước giờ — xem app CTCK có cho đặt từ tối hôm trước không). Lệnh chờ tham gia ATO: giá mở cửa thấp hơn LO thì khớp ở giá mở cửa. Không dùng ATO/MP, không sửa lệnh đuổi giá trong phiên: mã được khuyên mua thường giảm dần từ mở cửa (open→low TB −1,1%, open→close trung vị −0,2%). Gap mở cửa phiên sau nhỏ (TB +0,04%, chỉ 3/63 lệnh >1%) → không cần vội.
 5. **LO hết hiệu lực cuối phiên** — lệnh chưa khớp thì sáng hôm sau đặt lại nếu báo cáo mới vẫn giữ khuyến nghị. Lệnh 2 thấp hơn 1,5%: khớp trong 3 phiên ~70% (44/63); 1,0% ~81%.
 
+**Lệnh LO không khớp lúc mở cửa:** lệnh không mất — phần chưa khớp vẫn treo trên sổ lệnh suốt phiên (9:15–11:30, 13:00–14:30) và cả ATC (14:30–14:45), khớp khi giá mua giảm về / giá bán lên tới giá LO; có thể khớp một phần. Cùng mức giá, lệnh vào sổ trước khớp trước → đặt trước 9:00 là đứng đầu hàng chờ. Hết phiên phần chưa khớp tự huỷ. Số liệu 63 lệnh MUA: khớp ngay ATO 38 (60%), khớp trong phiên 16 (25%), không khớp 9 (14%).
+
+Hết ngày vẫn chưa khớp (hoặc khớp một phần):
+1. Không đuổi giá trong phiên — lỡ 1 lệnh rẻ hơn đuổi giá thành thói quen (mua đầu phiên TB đắt hơn ~1%).
+2. Tối đó đọc báo cáo mới: mã vẫn được khuyên mua → đặt lại theo **giá LO mới** (phiếu lệnh 8:30 sáng hôm sau đã có), không giữ giá cũ. Chỉ đặt phần còn thiếu.
+3. Báo cáo mới không còn khuyên mua → bỏ.
+
 **Tin qua đêm (chứng khoán Mỹ):** đêm S&P 500 giảm mạnh **không phải lý do hoãn mua**. Số liệu 720 phiên (08/2023–10/2026): sau đêm S&P ≤ −1,5%, VNINDEX mở cửa TB −0,73% rồi hồi +0,42% trong phiên — giá rẻ nhất thường là lúc mở cửa. Tương quan S&P đêm qua với gap mở cửa VN +0,56, với diễn biến trong phiên ≈ 0. → Giữ nguyên LO đã đặt sẵn, không hoãn, không đuổi. Đêm Mỹ tăng mạnh → VN thường mở cửa cao hơn, LO có thể không khớp — chấp nhận, đừng đuổi. Hoãn chỉ khi có tin xấu riêng của mã hoặc tin vĩ mô trong nước.
 
 ### Các lệnh lẻ (khi cần, không bắt buộc chạy hàng ngày)
