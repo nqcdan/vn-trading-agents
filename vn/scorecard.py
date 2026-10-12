@@ -15,7 +15,7 @@ import time
 
 import pandas as pd
 
-from . import cache, paper, vn_data
+from . import cache, paper, vn_data, vn_market
 
 _JOURNAL = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports", "journal")
 HORIZONS = (5, 10, 0)  # 0 = đến phiên gần nhất
@@ -39,10 +39,10 @@ def _history(symbol: str, start: str, end: str, throttle: float) -> pd.DataFrame
     def _fetch():
         time.sleep(throttle)  # vnstock guest: 20 req/phút, vượt là kill process
         df = vn_data.get_ohlcv(symbol, start, end)
-        return [{"date": str(d.date()), "open": float(o), "close": float(c)}
-                for d, o, c in zip(df["date"], df["open"], df["close"])]
+        return [{"date": str(d.date()), "open": float(o), "high": float(h), "low": float(lo), "close": float(c)}
+                for d, o, h, lo, c in zip(df["date"], df["open"], df["high"], df["low"], df["close"])]
     try:
-        rows = cache.memoize("ohlcv", f"{symbol}_{start}_{end}", _fetch, as_of=end)
+        rows = cache.memoize("ohlcv2", f"{symbol}_{start}_{end}", _fetch, as_of=end)
     except Exception:
         return None
     if not rows:
@@ -164,6 +164,53 @@ def paper_curve(prices: dict[str, pd.DataFrame]) -> dict | None:
             "missing": sorted(set(m1 + m2))}
 
 
+def decisions(journals: dict[str, dict], prices: dict[str, pd.DataFrame], sessions: pd.DatetimeIndex) -> list[dict]:
+    """Mục 3 từng báo cáo: đặt LO đúng giá báo cáo ở phiên kế tiếp → khớp không, lời/lỗ tới phiên gần nhất.
+
+    BUY khớp nếu low ≤ giá LO (giá vào = min(open, LO)); SELL khớp nếu high ≥ giá LO (giá ra = max(open, LO)).
+    BUY: lãi/lỗ nếu bán hôm nay (đã trừ phí/thuế/trượt giá). SELL: phần tránh được = tiền bán − giá trị nếu giữ đến nay.
+    """
+    out = []
+    last = sessions[-1]
+    for day, d in journals.items():
+        nxt = sessions[sessions > pd.Timestamp(day)]
+        upto = sessions[sessions <= pd.Timestamp(day)]
+        raw = {r["symbol"]: r.get("close") for r in d.get("ranking", [])}
+        for a in d.get("actions") or []:
+            act = str(a.get("action", "")).upper()
+            if act not in ("BUY", "SELL"):
+                continue
+            row = {"day": day, "action": act, "symbol": a["symbol"], "lots": int(a.get("lots") or 0),
+                   "lo": float(a.get("price") or 0), "filled": None}
+            out.append(row)
+            df = prices.get(a["symbol"])
+            if not len(nxt) or df is None or nxt[0] not in df.index or not row["lots"] or not row["lo"]:
+                continue
+            # Giá trong báo cáo chưa điều chỉnh; OHLCV đã điều chỉnh cổ tức cổ phiếu/thưởng → quy LO về cùng hệ.
+            factor = 1.0
+            if len(upto) and upto[-1] in df.index and raw.get(a["symbol"]):
+                f = float(df.at[upto[-1], "close"]) / float(raw[a["symbol"]])
+                if abs(f - 1) > 0.05:
+                    factor = f
+            row["adjusted"] = factor != 1.0
+            bar = df.loc[nxt[0]] * 1000 / factor
+            cur = float(df["close"].iloc[-1]) * 1000 / factor
+            shares = row["lots"] * vn_market.LOT_SIZE
+            if act == "BUY":
+                row["filled"] = bool(bar["low"] <= row["lo"])
+                fill = min(bar["open"], row["lo"]) if row["filled"] else float(bar["open"])
+                pnl = vn_market.sell_proceeds(cur, shares) - vn_market.buy_cost(fill, shares)
+                capital = vn_market.buy_cost(fill, shares)
+            else:
+                row["filled"] = bool(bar["high"] >= row["lo"])
+                fill = max(bar["open"], row["lo"]) if row["filled"] else float(bar["open"])
+                pnl = vn_market.sell_proceeds(fill, shares) - cur * shares
+                capital = cur * shares
+            row.update(fill=float(fill), cur=float(df["close"].iloc[-1]) * 1000, pnl=float(pnl), pct=float(pnl / capital * 100),
+                       as_of=str(last.date()))
+    return out
+
+
 def build(since: str | None = None, throttle: float = 3.3) -> dict:
     journals = load_journals(since)
     if not journals:
@@ -190,6 +237,7 @@ def build(since: str | None = None, throttle: float = 3.3) -> dict:
     vni_ret = _ret(ref, first[0], sessions[-1]) if len(first) else None
     return {"since": min(journals), "until": str(sessions[-1].date()),
             "stats": signal_stats(journals, prices, sessions),
+            "decisions": decisions(journals, prices, sessions),
             "basket_ret": basket_ret, "vnindex_ret": vni_ret,
             "health": health(journals), "paper": paper_curve(prices),
             "missing": sorted(syms - set(prices))}
@@ -198,6 +246,56 @@ def build(since: str | None = None, throttle: float = 3.3) -> dict:
 def _row(label: str, v: list[float]) -> str:
     s = summarize(v)
     return f"| {label} | {s['n']} | {s['mean']:+.2f} | {s['median']:+.2f} | {s['hit']:.0%} |"
+
+
+def _vnd(x: float) -> str:
+    return f"{x / 1e6:+,.2f}tr"
+
+
+def render_decisions(rows: list[dict]) -> list[str]:
+    done = [r for r in rows if "pnl" in r]
+    if not done:
+        return []
+    L = [f"## Mục 3 — nếu đặt LO đúng giá báo cáo ở phiên kế tiếp (tới {done[0]['as_of']})", ""]
+    buys = [r for r in done if r["action"] == "BUY" and r["filled"]]
+    sells = [r for r in done if r["action"] == "SELL" and r["filled"]]
+    miss = [r for r in done if not r["filled"]]
+    tot = sum(r["pnl"] for r in buys + sells)
+    if buys:
+        L.append(f"- **MUA khớp {len(buys)} lệnh:** lãi/lỗ {_vnd(sum(r['pnl'] for r in buys))} "
+                 f"· {sum(r['pnl'] > 0 for r in buys)}/{len(buys)} lệnh có lãi (đã trừ phí, thuế)")
+    if sells:
+        L.append(f"- **BÁN khớp {len(sells)} lệnh:** so với giữ đến nay {_vnd(sum(r['pnl'] for r in sells))} "
+                 f"(dương = bán đúng)")
+    if buys:
+        cap = sum(r["pnl"] / r["pct"] * 100 for r in buys if r["pct"])
+        L.append(f"- **Tổng giá trị các lệnh MUA (cộng dồn mọi báo cáo):** {cap / 1e6:,.1f}tr → lợi suất {sum(r['pnl'] for r in buys) / cap * 100:+.2f}%")
+    L.append(f"- **Tổng nếu làm theo mọi lệnh khớp:** {_vnd(tot)} · {len(miss)} lệnh LO không khớp phiên kế tiếp")
+    L += ["", "| Báo cáo | Lệnh | Mã | Lô | LO | Khớp | Giá nay | Lãi/lỗ | % |",
+          "| :-- | :-- | :-- | --: | --: | :-- | --: | --: | --: |"]
+    by_day: dict[str, float] = {}
+    note = any(r.get("adjusted") for r in done)
+    for r in done:
+        if r["filled"]:
+            by_day[r["day"]] = by_day.get(r["day"], 0.0) + r["pnl"]
+        sym = r["symbol"] + ("*" if r.get("adjusted") else "")
+        L.append(f"| {r['day']} | {'MUA' if r['action'] == 'BUY' else 'BÁN'} | {sym} | {r['lots']} "
+                 f"| {r['lo']:,.0f} | {'✓ ' + format(r['fill'], ',.0f') if r['filled'] else '✗ (mở ' + format(r['fill'], ',.0f') + ')'} "
+                 f"| {r['cur']:,.0f} | {_vnd(r['pnl']) if r['filled'] else '—'} | {r['pct']:+.1f}% |")
+    if note:
+        L += ["", "\\* Mã có chia cổ tức cổ phiếu/thưởng sau báo cáo: Khớp tính theo giá cũ, Giá nay là giá thực tế, "
+              "lãi/lỗ đã tính cả số cổ phiếu được chia."]
+    by_sym: dict[tuple[str, str], list[float]] = {}
+    for r in done:
+        if r["filled"]:
+            by_sym.setdefault((r["symbol"], r["action"]), []).append(r["pnl"])
+    L += ["", "| Mã | Lệnh | Số lệnh khớp | Lãi/lỗ |", "| :-- | :-- | --: | --: |"]
+    L += [f"| {k[0]} | {'MUA' if k[1] == 'BUY' else 'BÁN'} | {len(v)} | {_vnd(sum(v))} |"
+          for k, v in sorted(by_sym.items(), key=lambda kv: -sum(kv[1]))]
+    L += ["", "| Báo cáo | Lãi/lỗ cả mục 3 (lệnh khớp) |", "| :-- | --: |"]
+    L += [f"| {d} | {_vnd(v)} |" for d, v in sorted(by_day.items())]
+    L.append("")
+    return L
 
 
 def render(res: dict) -> str:
@@ -222,6 +320,7 @@ def render(res: dict) -> str:
         for g, v in sorted(block["llm"].items()):
             L.append(_row(f"LLM {g}", v))
         L.append("")
+    L += render_decisions(res.get("decisions") or [])
     L.append("Đọc bảng: BUY tốt khi TB > 0, SELL tốt khi TB < 0. Mỗi mã lặp tín hiệu nhiều ngày liền "
              "nên các quan sát không độc lập — n thật nhỏ hơn nhiều so với con số hiển thị.")
     L.append("")

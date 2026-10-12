@@ -162,7 +162,7 @@ Tự động: slot EOD (launchd 15:30) chạy `paper journal` sau báo cáo — 
 
 ### Scorecard tín hiệu
 
-Đo khuyến nghị trong các báo cáo daily so với giá thực tế sau đó: vào lệnh = giá mở cửa phiên kế tiếp, đo vượt trội so với trung bình đều cả rổ sau 5 / 10 phiên / đến nay, tách rule-based (BUY/HOLD/SELL) và LLM (actions). Kèm sổ paper và sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). Giá lấy từ OHLCV đã điều chỉnh cổ tức/chia tách, ~2 phút vì giới hạn 20 req/phút của vnstock.
+Đo khuyến nghị trong các báo cáo daily so với giá thực tế sau đó. Phần "Mục 3" chấm từng lệnh MUA/BÁN của mục Quyết định & giải ngân: đặt LO đúng giá báo cáo ở phiên kế tiếp → khớp hay không, lãi/lỗ tới nay (đã trừ phí, đã quy đổi khi có chia cổ tức cổ phiếu), gộp theo báo cáo và theo mã. Phần tín hiệu: vào lệnh = giá mở cửa phiên kế tiếp, đo vượt trội so với trung bình đều cả rổ sau 5 / 10 phiên / đến nay, tách rule-based (BUY/HOLD/SELL) và LLM (actions). Kèm sổ paper và sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). Giá lấy từ OHLCV đã điều chỉnh cổ tức/chia tách, ~2 phút vì giới hạn 20 req/phút của vnstock.
 
 .venv/bin/python run.py scorecard
 .venv/bin/python run.py scorecard --since 2026-10-01

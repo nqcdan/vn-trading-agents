@@ -56,3 +56,16 @@ def test_paper_apply_journal_once(tmp_path, monkeypatch):
     assert out["book"]["positions"]["HPG"]["qty"] == 100
     assert paper.apply_journal("2026-10-12", journal_dir=str(jd))["skipped"]
     assert paper._load()["positions"]["HPG"]["qty"] == 100
+
+
+def test_decisions_lo_fill_and_pnl():
+    idx = pd.to_datetime(["2026-09-08", "2026-09-09"])
+    df = pd.DataFrame({"open": [20.5, 21], "high": [21, 22], "low": [19.8, 20.5], "close": [20.2, 22.0]}, index=idx)
+    journals = {"2026-09-07": {"actions": [
+        {"action": "BUY", "symbol": "HPG", "lots": 1, "price": 20000.0},
+        {"action": "BUY", "symbol": "HPG", "lots": 1, "price": 19000.0},
+        {"action": "SELL", "symbol": "HPG", "lots": 1, "price": 20800.0}]}}
+    rows = scorecard.decisions(journals, {"HPG": df}, idx)
+    assert rows[0]["filled"] and rows[0]["fill"] == 20000.0 and rows[0]["pnl"] > 0
+    assert rows[1]["filled"] is False
+    assert rows[2]["filled"] and rows[2]["fill"] == 20800.0 and rows[2]["pnl"] < 0
