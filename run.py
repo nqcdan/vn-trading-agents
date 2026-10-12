@@ -11,7 +11,7 @@ import datetime
 import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
-                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table, scorecard, snapshot,
+                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table, scorecard, snapshot, orders,
                 news_digest, market_refs, crypto_cmd)
 
 
@@ -378,6 +378,10 @@ def cmd_paper(a):
         _paper_agent(a, "watch")
 
 
+def cmd_orders(a):
+    print(orders.morning_text(a.date))
+
+
 def cmd_snapshot(a):
     try:
         path, md = snapshot.run(a.throttle)
@@ -516,6 +520,10 @@ def main():
     psc2.add_argument("--since", default=None, help="YYYY-MM-DD")
     psc2.add_argument("--throttle", type=float, default=3.3)
     psc2.set_defaults(func=cmd_scorecard)
+
+    po = sub.add_parser("orders", help="phiếu lệnh buổi sáng từ bảng 'Lệnh đặt cụ thể' của báo cáo gần nhất (không LLM)")
+    po.add_argument("--date", default=None, help="hôm nay (YYYY-MM-DD) — lấy báo cáo trước ngày này")
+    po.set_defaults(func=cmd_orders)
 
     psn = sub.add_parser("snapshot", help="chụp danh mục thật hôm nay → reports/portfolio/{ngày}.md (so ngày trước + đối chiếu mục 3)")
     psn.add_argument("--throttle", type=float, default=3.3)

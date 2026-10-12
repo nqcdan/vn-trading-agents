@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # daily-auto.sh — chạy runbook daily (mục 1 RUNBOOK.md) + giao Telegram. Dùng bởi launchd + skill daily-trading.
-# Usage: daily-auto.sh [eod|crypto]   (mặc định eod)
+# Usage: daily-auto.sh [eod|orders|crypto]   (mặc định eod)
+#   eod    — tối: báo cáo daily (giá đóng cửa đã chốt) + snapshot danh mục; thứ 6 thêm hiệu suất mục 3
+#   orders — sáng trước 9:00: gửi phiếu lệnh từ báo cáo tối hôm trước (không LLM)
 # Số liệu danh mục + ngân sách lấy realtime từ everyday API (cần cert everyday còn hạn).
 # TCBS real-time qua `claude -p` headless (token OAuth cache); hết hạn → báo lỗi Telegram nhắc re-auth.
 set -uo pipefail
@@ -23,6 +25,14 @@ send() { (cd "$EVERYDAY" && ./node_modules/.bin/tsx scripts/pdf/send-trading-dai
 
 echo "[$(ts)] === daily-auto slot=$SLOT dow=$DOW ===" >>"$LOG"
 
+if [ "$SLOT" = "orders" ]; then
+  [ "$DOW" -ge 6 ] && { echo "[$(ts)] cuối tuần, bỏ qua." >>"$LOG"; exit 0; }
+  if MSG="$(.venv/bin/python run.py orders 2>>"$LOG")" && send --text "$MSG"; then
+    echo "[$(ts)] OK → sent orders" >>"$LOG"; exit 0
+  fi
+  echo "[$(ts)] orders lỗi" >>"$LOG"; exit 1
+fi
+
 if [ "$SLOT" = "crypto" ]; then
   # Crypto 24/7 → không guard cuối tuần, không TCBS.
   REPORT="$REPO/reports/journal/$TODAY-crypto.md"
@@ -36,7 +46,7 @@ else
     echo "[$(ts)] cuối tuần, bỏ qua." >>"$LOG"
     exit 0
   fi
-  HEADER="📊 Trading EOD $TODAY — rổ VN30. Đọc để chuẩn bị lệnh phiên sau."
+  HEADER="📊 Trading tối $TODAY — rổ VN30. Chốt lệnh tối nay; 8:30 sáng mai gửi phiếu lệnh."
   VN_MCP_TIMEOUT=600 .venv/bin/python run.py daily --group VN30 --require-mcp >>"$LOG" 2>&1
   RC=$?
   BASENAME="trading-daily-$TODAY"

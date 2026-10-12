@@ -77,10 +77,10 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 
 Nhịp thiết kế của `daily`: chạy cuối ngày, đọc quyết định, đặt lệnh vào phiên sáng hôm sau (swing theo ngày, không lướt intraday).
 
-1. **15:30 (tự động)** báo cáo `daily` gửi về Telegram. Không chạy `daily` trong giờ giao dịch (9:00–14:45): giá lấy là giá đang khớp, RSI/SMA tính trên nến chưa xong, giá LO thành giá đuổi. Số liệu 09–10/2026: mua ngay theo báo cáo chạy buổi sáng lãi TB −0,72% so với +0,22% khi đặt LO đúng giá báo cáo ở phiên sau.
+1. **19:00 (tự động)** báo cáo `daily` gửi về Telegram (giá đóng cửa, khối ngoại, tin sau phiên đã chốt) + snapshot danh mục; thứ 6 kèm hiệu suất lệnh mục 3. Không chạy `daily` trong giờ giao dịch (9:00–14:45): giá lấy là giá đang khớp, RSI/SMA tính trên nến chưa xong, giá LO thành giá đuổi. Số liệu 09–10/2026: mua ngay theo báo cáo chạy buổi sáng lãi TB −0,72% so với +0,22% khi đặt LO đúng giá báo cáo ở phiên sau.
 2. **Buổi tối — chốt lệnh** theo bảng **Lệnh đặt cụ thể** ở mục 3 (đã tách lệnh 1 / lệnh 2, giá LO đúng bước giá, tiền gồm phí). Đừng vào hết 1 lần — chia đợt là kiểm soát rủi ro, không phải trang trí.
 3. **Đảm bảo tiền đã ở TK chứng khoán** — ngân sách báo cáo lấy từ ví bank everyday, nhưng đặt lệnh cần tiền nằm sẵn trong TK chứng khoán (chuyển tối trước). Lệnh nào *bán để lấy tiền mua* → tiền bán T+2 mới về, không mua ngay sáng mai bằng tiền đó (bảng lệnh đánh ⚠ khi thiếu tiền).
-4. **Trước 9:00 sáng mai** đặt sẵn LO đúng giá báo cáo (lệnh chờ trước giờ — xem app CTCK có cho đặt từ tối hôm trước không). Lệnh chờ tham gia ATO: giá mở cửa thấp hơn LO thì khớp ở giá mở cửa. Không dùng ATO/MP, không sửa lệnh đuổi giá trong phiên: mã được khuyên mua thường giảm dần từ mở cửa (open→low TB −1,1%, open→close trung vị −0,2%). Gap mở cửa phiên sau nhỏ (TB +0,04%, chỉ 3/63 lệnh >1%) → không cần vội.
+4. **8:30 sáng mai (tự động)** Telegram gửi phiếu lệnh (bảng Lệnh đặt cụ thể của báo cáo tối qua, không gọi LLM — `run.py orders`). **Trước 9:00** đặt sẵn LO đúng giá báo cáo (lệnh chờ trước giờ — xem app CTCK có cho đặt từ tối hôm trước không). Lệnh chờ tham gia ATO: giá mở cửa thấp hơn LO thì khớp ở giá mở cửa. Không dùng ATO/MP, không sửa lệnh đuổi giá trong phiên: mã được khuyên mua thường giảm dần từ mở cửa (open→low TB −1,1%, open→close trung vị −0,2%). Gap mở cửa phiên sau nhỏ (TB +0,04%, chỉ 3/63 lệnh >1%) → không cần vội.
 5. **LO hết hiệu lực cuối phiên** — lệnh chưa khớp thì sáng hôm sau đặt lại nếu báo cáo mới vẫn giữ khuyến nghị. Lệnh 2 thấp hơn 1,5%: khớp trong 3 phiên ~70% (44/63); 1,0% ~81%.
 
 **Tin qua đêm (chứng khoán Mỹ):** đêm S&P 500 giảm mạnh **không phải lý do hoãn mua**. Số liệu 720 phiên (08/2023–10/2026): sau đêm S&P ≤ −1,5%, VNINDEX mở cửa TB −0,73% rồi hồi +0,42% trong phiên — giá rẻ nhất thường là lúc mở cửa. Tương quan S&P đêm qua với gap mở cửa VN +0,56, với diễn biến trong phiên ≈ 0. → Giữ nguyên LO đã đặt sẵn, không hoãn, không đuổi. Đêm Mỹ tăng mạnh → VN thường mở cửa cao hơn, LO có thể không khớp — chấp nhận, đừng đuổi. Hoãn chỉ khi có tin xấu riêng của mã hoặc tin vĩ mô trong nước.
@@ -163,11 +163,11 @@ Xem giá trị và chấm điểm định kỳ:
 .venv/bin/python run.py scorecard
 .venv/bin/python run.py scorecard --since 2026-10-01
 
-Lưu `reports/scorecard/{ngày}.md`. Thứ 6 slot EOD tự chạy và gửi Telegram.
+Lưu `reports/scorecard/{ngày}.md`. Thứ 6 slot tối tự chạy và gửi Telegram.
 
 ### Snapshot danh mục hằng ngày
 
-Slot EOD tự chụp danh mục thật vào `reports/portfolio/{ngày}.md`: tổng tài sản (cổ phiếu / tiền mặt / crypto), từng vị thế (SL, lô chẵn + lô lẻ, giá vốn, giá đóng cửa, lãi/lỗ, tỷ trọng), thay đổi so với ngày trước (do giá vs do mua bán) và đối chiếu lệnh thật với mục 3 của báo cáo hôm trước (đã làm / chưa làm). Chạy tay:
+Slot tối (19:00) tự chụp danh mục thật vào `reports/portfolio/{ngày}.md`: tổng tài sản (cổ phiếu / tiền mặt / crypto), từng vị thế (SL, lô chẵn + lô lẻ, giá vốn, giá đóng cửa, lãi/lỗ, tỷ trọng), thay đổi so với ngày trước (do giá vs do mua bán) và đối chiếu lệnh thật với mục 3 của báo cáo hôm trước (đã làm / chưa làm). Chạy tay:
 
 .venv/bin/python run.py snapshot
 

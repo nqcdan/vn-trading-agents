@@ -212,11 +212,11 @@ def _order_rows(acts: list[dict], holdings: list[dict] | None) -> list[dict]:
         ex = vn_market.detect_exchange(sym)
         lo = vn_market.round_tick(float(a["price"]), ex, side)
         n1 = (lots + 1) // 2 if lots >= 2 else lots
-        first.append({"side": side, "sym": sym, "qty": n1 * _LOT, "price": lo, "when": "Phiên tới, sau ATO (~9:15)"})
+        first.append({"side": side, "sym": sym, "qty": n1 * _LOT, "price": lo, "when": "Đặt trước 9:00 (lệnh chờ, vào ATO)"})
         if lots - n1:
             p2 = vn_market.round_tick(lo * (1 - SPLIT_STEP if side == "BUY" else 1 + SPLIT_STEP), ex, side)
             second.append({"side": side, "sym": sym, "qty": (lots - n1) * _LOT, "price": p2,
-                           "when": f"Treo LO mỗi phiên tới khi khớp ({'−' if side == 'BUY' else '+'}{SPLIT_STEP:.1%})"})
+                           "when": f"Đặt trước 9:00; chưa khớp thì đặt lại phiên sau ({'−' if side == 'BUY' else '+'}{SPLIT_STEP:.1%})"})
         odd = held.get(sym, 0) % _LOT
         if side == "SELL" and odd and lots * _LOT >= held[sym] - odd:
             second.append({"side": side, "sym": sym, "qty": odd, "price": lo, "when": "Bảng lô lẻ (bán hết phần lẻ)"})
