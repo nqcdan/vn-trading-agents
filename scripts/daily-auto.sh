@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # daily-auto.sh — chạy runbook daily (mục 1 RUNBOOK.md) + giao Telegram. Dùng bởi launchd + skill daily-trading.
-# Usage: daily-auto.sh [eod|morning]   (mặc định eod)
+# Usage: daily-auto.sh [eod|crypto]   (mặc định eod)
 # Số liệu danh mục + ngân sách lấy realtime từ everyday API (cần cert everyday còn hạn).
 # TCBS real-time qua `claude -p` headless (token OAuth cache); hết hạn → báo lỗi Telegram nhắc re-auth.
 set -uo pipefail
@@ -36,11 +36,7 @@ else
     echo "[$(ts)] cuối tuần, bỏ qua." >>"$LOG"
     exit 0
   fi
-  if [ "$SLOT" = "morning" ]; then
-    HEADER="☀️ Trading sáng $TODAY — xem trước khi đặt LO ~9:15. Số liệu = đóng cửa phiên trước + tin qua đêm."
-  else
-    HEADER="📊 Trading EOD $TODAY — rổ VN30. Đọc để chuẩn bị lệnh phiên sau."
-  fi
+  HEADER="📊 Trading EOD $TODAY — rổ VN30. Đọc để chuẩn bị lệnh phiên sau."
   VN_MCP_TIMEOUT=600 .venv/bin/python run.py daily --group VN30 --require-mcp >>"$LOG" 2>&1
   RC=$?
   BASENAME="trading-daily-$TODAY"
