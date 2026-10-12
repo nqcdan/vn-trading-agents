@@ -64,9 +64,9 @@ else
   exit 1
 fi
 
-# EOD: áp quyết định daily vào sổ paper (không LLM) → đo agent vs giữ nguyên. Thứ 6: gửi scorecard tuần.
+# EOD: chụp danh mục ngày; thứ 6 gửi thêm hiệu suất lệnh mục 3.
 if [ "$SLOT" = "eod" ]; then
-  .venv/bin/python run.py paper journal >>"$LOG" 2>&1 || echo "[$(ts)] paper journal lỗi" >>"$LOG"
+  .venv/bin/python run.py snapshot >>"$LOG" 2>&1 || echo "[$(ts)] snapshot lỗi" >>"$LOG"
   if [ "$DOW" -eq 5 ]; then
     if .venv/bin/python run.py scorecard >>"$LOG" 2>&1 \
        && send --pdf "$REPO/reports/scorecard/$TODAY.md" "trading-scorecard-$TODAY" "📈 Hiệu suất lệnh mục 3 — tuần $TODAY."; then

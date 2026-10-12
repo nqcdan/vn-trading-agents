@@ -11,7 +11,7 @@ import datetime
 import json
 
 from vn import (agents, vn_backtest, recommend as rec, portfolio as pf, advise as adv,
-                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table, scorecard,
+                tcbs as tcbs_mcp, watch as watch_mod, journal, paper, decision_table, scorecard, snapshot,
                 news_digest, market_refs, crypto_cmd)
 
 
@@ -169,7 +169,7 @@ def cmd_advise(a):
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
     saved = journal.record("advise", {**res, "cost": snap}, summary_md=report)
     if saved:
-        print(f"→ báo cáo: {saved[:-5]}.md")
+        print(f"→ báo cáo: {saved}")
     if a.json:
         _print(res)
 
@@ -187,7 +187,7 @@ def cmd_crypto(a):
     print(f"[LLM: {snap['spawns']} spawn, {snap['wall_s']:.0f}s]")
     saved = journal.record("crypto", {**res, "cost": snap}, summary_md=report)
     if saved:
-        print(f"→ báo cáo: {saved[:-5]}.md")
+        print(f"→ báo cáo: {saved}")
 
 
 def cmd_daily(a):
@@ -235,7 +235,7 @@ def cmd_daily(a):
     saved = journal.record("daily", {**res, "triggers": triggers, "macro_digest": macro,
                                       "news": news_map, "cost": snap}, summary_md=report)
     if saved:
-        print(f"→ báo cáo: {saved[:-5]}.md")
+        print(f"→ báo cáo: {saved}")
     if a.json:
         _print(res)
 
@@ -372,29 +372,24 @@ def cmd_paper(a):
         for n in s.get("notes", []):
             print(f"  · {n}")
         print("\nCaveat: 2–3 tháng KHÔNG đủ kết luận alpha — chỉ đo thất bại thô + chi phí + độ ổn định.")
-    elif act == "journal":
-        day = a.date or f"{datetime.datetime.now():%Y-%m-%d}"
-        try:
-            out = paper.apply_journal(day)
-        except paper.PaperError as e:
-            print(f"Lỗi: {e}")
-            return
-        if out.get("skipped"):
-            print(f"Bỏ qua: {out['skipped']}")
-            return
-        print(f"— Áp {len(out['acts'])} hành động từ daily {day} vào sổ paper:")
-        for act_ in out["acts"]:
-            print(f"  {act_.get('action')} {act_.get('symbol')} {act_.get('lots')} lô @ {act_.get('price'):,.0f}")
-        for w in out.get("warnings", []):
-            print(f"  ⚠ {w}")
     elif act == "advise":
         _paper_agent(a, "advise")
     elif act == "watch":
         _paper_agent(a, "watch")
 
 
+def cmd_snapshot(a):
+    try:
+        path, md = snapshot.run(a.throttle)
+    except pf.PortfolioError as e:
+        print(f"Lỗi everyday: {e}")
+        raise SystemExit(1)
+    print(md)
+    print(f"→ snapshot: {path}")
+
+
 def cmd_scorecard(a):
-    md = scorecard.render(scorecard.build(a.since, a.throttle), full=a.full)
+    md = scorecard.render(scorecard.build(a.since, a.throttle))
     print(md)
     print(f"→ scorecard: {scorecard.save(md)}")
 
@@ -508,8 +503,6 @@ def main():
     pm.add_argument("--asset-class", default="vn_stock")
     psc = psub.add_parser("score", help="scorecard: agent vs giữ nguyên vs VNINDEX/BTC + phí/turnover")
     psc.add_argument("--asset-class", default="vn_stock")
-    pj = psub.add_parser("journal", help="áp actions của báo cáo daily vào sổ paper (không LLM, 1 lần/ngày)")
-    pj.add_argument("--date", default=None, help="YYYY-MM-DD (mặc định hôm nay)")
     for name in ("advise", "watch"):
         pag = psub.add_parser(name, help=f"agent {name} → auto-apply vào sổ paper + đo chi phí LLM")
         pag.add_argument("--group", default="VN30")
@@ -522,8 +515,11 @@ def main():
     psc2 = sub.add_parser("scorecard", help="hiệu suất lệnh mục 3 từng báo cáo daily (LO khớp, lãi/lỗ sau phí) + sức khoẻ pipeline")
     psc2.add_argument("--since", default=None, help="YYYY-MM-DD")
     psc2.add_argument("--throttle", type=float, default=3.3)
-    psc2.add_argument("--full", action="store_true", help="thêm thống kê tín hiệu rule/LLM + sổ paper")
     psc2.set_defaults(func=cmd_scorecard)
+
+    psn = sub.add_parser("snapshot", help="chụp danh mục thật hôm nay → reports/portfolio/{ngày}.md (so ngày trước + đối chiếu mục 3)")
+    psn.add_argument("--throttle", type=float, default=3.3)
+    psn.set_defaults(func=cmd_snapshot)
 
     pv = sub.add_parser("serve", help="chạy HTTP API đọc chỉ số hiện tại")
     pv.add_argument("--host", default="127.0.0.1")

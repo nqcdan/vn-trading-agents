@@ -27,7 +27,7 @@ Danh mục + ngân sách (tiền mặt ví bank) lấy realtime từ everyday, k
 - **Đầu trang** — tâm lý tin thị trường (net, suy từ headline tài chính) + **tin thị trường đa nguồn** (CafeF · Vietstock · VnEconomy · ĐTCK, xen kẽ nguồn, mới nhất, ngày + link + nhãn nguồn bấm được).
 - **`## 1. Danh mục hiện tại`** — SL / giá vốn / giá TT / giá trị / **P&L** từng vị thế + tổng P&L (từ everyday).
 - **`## 2. Cảnh báo danh mục`** — mã đang giữ bị trigger (RSI≥70 / tập trung >25% NAV / SELL / thủng SMA50 / tin xấu). Không có → "danh mục ổn".
-- **`## 3. Quyết định & giải ngân`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN, kèm bán nếu có) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ.
+- **`## 3. Quyết định & giải ngân`** — dòng `▶ QUYẾT ĐỊNH ĐỢT NÀY` (giải ngân bao nhiêu %/hay HOLD TIỀN, kèm bán nếu có) + bảng hành động mua/bán/giữ theo lô. `◆` = mã đang giữ Bảng có cột **Giá LO** (đã làm tròn bước giá HOSE 10/50/100đ). Ngay dưới là **Lệnh đặt cụ thể**: mỗi lệnh ≥2 lô tách 2 lệnh (lệnh 1 giá báo cáo phiên tới sau ATO; lệnh 2 mua thấp hơn / bán cao hơn 1,5%, treo LO mỗi phiên tới khi khớp), bán trước mua sau, số cp, tiền gồm phí, tiền mặt còn lại sau từng lệnh (⚠ khi thiếu — tiền bán T+2 không tính), bán hết thì kèm lệnh lô lẻ.
 - **`## 4. Tin tức từng mã`** — mỗi mã (đang giữ + ứng viên): tâm lý (🟢/🔴/⚪ + net) + tối đa 4 headline kèm ngày, link, nguồn (CafeF/Vietstock/VnEconomy/ĐTCK/vnstock) + trích 1 dòng nội dung.
 - **`## 5. Xếp hạng cả rổ`** — toàn rổ xếp theo tín hiệu (BUY→SELL), rule-based, soi cơ hội ngoài danh mục.
 - **`## 6. Phân tích chi tiết`** — diễn giải sâu từng mã theo TCBS real-time: rating 7 chiều, khối ngoại, đồng thuận CTCK, điểm vào chia lệnh, rủi ro theo dõi.
@@ -156,20 +156,20 @@ Xem giá trị và chấm điểm định kỳ:
 
 Điểm số so 3 đường: agent (đã giao dịch) — giữ nguyên (không đụng) — VNINDEX. Agent thua "giữ nguyên" nghĩa là phí và giao dịch thừa đang ăn mòn lời.
 
-Tự động: slot EOD (launchd 15:30) chạy `paper journal` sau báo cáo — áp các hành động của báo cáo daily hôm đó vào sổ (không gọi LLM, mỗi ngày 1 lần). Chạy tay cho ngày cụ thể:
-
-.venv/bin/python run.py paper journal --date 2026-10-12
-
 ### Hiệu suất lệnh mục 3 (chuẩn thống kê)
 
-Thống kê hiệu suất luôn chấm theo **mục 3 "Quyết định & giải ngân"** — bảng duy nhất dùng để đặt lệnh thật. Mỗi lệnh MUA/BÁN của từng báo cáo: đặt LO đúng giá báo cáo ở phiên kế tiếp → khớp hay không, lãi/lỗ tới nay (đã trừ phí/thuế/trượt giá, quy đổi khi chia cổ tức cổ phiếu), gộp theo báo cáo và theo mã, so VNINDEX cùng kỳ. Kèm sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). ~2 phút vì vnstock giới hạn 20 req/phút.
+Đọc thẳng các file `reports/journal/*-daily.md` (journal chỉ lưu .md, không JSON). Thống kê hiệu suất luôn chấm theo **mục 3 "Quyết định & giải ngân"** — bảng duy nhất dùng để đặt lệnh thật. Mỗi lệnh MUA/BÁN của từng báo cáo: đặt LO đúng giá báo cáo ở phiên kế tiếp → khớp hay không, lãi/lỗ tới nay (đã trừ phí/thuế/trượt giá, quy đổi khi chia cổ tức cổ phiếu), gộp theo báo cáo và theo mã, so VNINDEX cùng kỳ. Kèm sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). ~2 phút vì vnstock giới hạn 20 req/phút.
 
 .venv/bin/python run.py scorecard
 .venv/bin/python run.py scorecard --since 2026-10-01
 
-Thêm `--full` để xem phụ thống kê tín hiệu rule/LLM so với rổ + sổ paper (không dùng để đánh giá chính).
-
 Lưu `reports/scorecard/{ngày}.md`. Thứ 6 slot EOD tự chạy và gửi Telegram.
+
+### Snapshot danh mục hằng ngày
+
+Slot EOD tự chụp danh mục thật vào `reports/portfolio/{ngày}.md`: tổng tài sản (cổ phiếu / tiền mặt / crypto), từng vị thế (SL, lô chẵn + lô lẻ, giá vốn, giá đóng cửa, lãi/lỗ, tỷ trọng), thay đổi so với ngày trước (do giá vs do mua bán) và đối chiếu lệnh thật với mục 3 của báo cáo hôm trước (đã làm / chưa làm). Chạy tay:
+
+.venv/bin/python run.py snapshot
 
 ## 5. Khi gặp trục trặc
 

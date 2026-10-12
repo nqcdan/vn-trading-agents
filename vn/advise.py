@@ -8,7 +8,7 @@ Hai chế độ:
 """
 from __future__ import annotations
 
-from . import recommend as rec
+from . import vn_market, recommend as rec
 from . import tcbs as tcbs_mcp
 from . import portfolio as pf
 from . import actions
@@ -19,7 +19,7 @@ _JSON_DIRECTIVE = (
     "\n\nCUỐI CÙNG, sau phần trình bày, in DUY NHẤT MỘT khối ```json chứa list hành động "
     "thực thi đúng kế hoạch trên:\n"
     '[{"action":"BUY|SELL|HOLD","symbol":"MÃ","lots":<số lô 100cp>,'
-    '"price":<giá 1 cp theo ĐỒNG, vd 84200>,"reason":"ngắn"}].\n'
+    '"price":<giá 1 cp theo ĐỒNG, vd 84200>,"reason":"ngắn, tiếng Việt CÓ DẤU"}].\n'
     "Chỉ gồm mã CÓ hành động mua/bán thật (bỏ HOLD nếu không giao dịch). `lots`=số lô sẽ "
     "khớp, `price`=giá/cp theo đồng (không phải nghìn). Khối JSON PHẢI khớp con số trong "
     "bảng ở trên."
@@ -168,14 +168,17 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
     prompt_lines = _ranking_lines(r["ranking"], keep=keep)  # trim → LLM khỏi nhồi cả rổ
 
     held_lots = {}  # số lô đang giữ (1 lô=100cp) — bơm vào prompt để LLM khỏi bịa lệnh BÁN
+    odd = {}  # cp lô lẻ (thường do cổ tức cổ phiếu) — chỉ bán được ở bảng lô lẻ, không tính vào lô
     try:
         for h in pf.fetch_holdings(asset_class):
             q = h.get("qty")
             if h.get("symbol") and q:
-                held_lots[str(h["symbol"]).upper()] = int(q) // 100
+                held_lots[str(h["symbol"]).upper()], odd[str(h["symbol"]).upper()] = vn_market.split_lots(int(q))
     except Exception:
         pass
-    held_lots_txt = ", ".join(f"{s} {n} lô ({n * 100}cp)" for s, n in held_lots.items()) or "(không lấy được)"
+    held_lots_txt = ", ".join(
+        f"{s} {n} lô ({n * 100}cp)" + (f" + {odd[s]}cp lô lẻ" if odd.get(s) else "")
+        for s, n in held_lots.items()) or "(không lấy được)"
 
     def _text_fallback(reason: str) -> tuple[str, str]:
         try:
@@ -202,7 +205,7 @@ def advise(group: str = "VN30", holdings_csv: str | None = None, asset_class: st
     plan = plan.strip()
     budget = float(cash_info["total"]) if cash_info and cash_info.get("total") is not None else None
     acts = actions.reconcile_lots(actions.parse_actions(plan), budget)
-    acts, act_warnings = actions.validate_actions(acts, budget, held_lots)
+    acts, act_warnings = actions.validate_actions(actions.snap_prices(acts), budget, held_lots)
     return {"group": group, "macro": macro, "mode": mode, "ranking_lines": lines,
             "ranking": r["ranking"], "shortlist": sorted(keep),
             "cash_txt": cash_txt, "cash_info": cash_info, "budget": budget,

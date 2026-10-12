@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from .vn_market import LOT_SIZE
+from .vn_market import LOT_SIZE, detect_exchange, round_tick
 
 VALID_ACTIONS = {"BUY", "SELL", "HOLD"}
 
@@ -107,6 +107,16 @@ def validate_actions(acts: list[dict], budget: float | None,
             spent += cost
         out.append(a)
     return out, warnings
+
+
+def snap_prices(acts: list[dict]) -> list[dict]:
+    """LLM hay ra giá lẻ (vd 21.538) — sàn từ chối lệnh sai bước giá → làm tròn về bước giá hợp lệ."""
+    out = []
+    for a in acts:
+        if a.get("action") in ("BUY", "SELL") and a.get("price"):
+            a = {**a, "price": round_tick(float(a["price"]), detect_exchange(a["symbol"]), a["action"])}
+        out.append(a)
+    return out
 
 
 def parse_actions(text: str) -> list[dict]:

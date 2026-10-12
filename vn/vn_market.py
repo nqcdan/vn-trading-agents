@@ -62,6 +62,26 @@ def clamp_to_band(ref_price: float, target_price: float, symbol: str) -> float:
     return max(lo, min(hi, target_price))
 
 
+def tick_size(price: float, exchange: str = "HOSE") -> int:
+    """Bước giá: HOSE 10đ (<10k) / 50đ (10k–<50k) / 100đ (≥50k); HNX, UPCOM 100đ."""
+    if exchange != "HOSE":
+        return 100
+    return 10 if price < 10_000 else 50 if price < 50_000 else 100
+
+
+def round_tick(price: float, exchange: str = "HOSE", side: str = "BUY") -> float:
+    """Làm tròn về bước giá hợp lệ: MUA tròn xuống, BÁN tròn lên (không trả giá tệ hơn ý định)."""
+    t = tick_size(price, exchange)
+    n = price / t
+    n = int(n) if side == "BUY" else -int(-n // 1)
+    return float(n * t)
+
+
+def split_lots(qty: int) -> tuple[int, int]:
+    """→ (số lô chẵn, số cp lô lẻ). Cổ tức bằng cổ phiếu hay đẻ lô lẻ, phải bán ở bảng lô lẻ."""
+    return int(qty) // LOT_SIZE, int(qty) % LOT_SIZE
+
+
 def round_lot(shares: float) -> int:
     return int(shares // LOT_SIZE) * LOT_SIZE
 
