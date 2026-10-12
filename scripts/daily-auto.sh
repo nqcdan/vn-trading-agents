@@ -63,3 +63,16 @@ else
   send --text "⚠️ Báo cáo $SLOT $TODAY đã tạo nhưng gửi Telegram lỗi. Xem $REPO/$LOG" || true
   exit 1
 fi
+
+# EOD: áp quyết định daily vào sổ paper (không LLM) → đo agent vs giữ nguyên. Thứ 6: gửi scorecard tuần.
+if [ "$SLOT" = "eod" ]; then
+  .venv/bin/python run.py paper journal >>"$LOG" 2>&1 || echo "[$(ts)] paper journal lỗi" >>"$LOG"
+  if [ "$DOW" -eq 5 ]; then
+    if .venv/bin/python run.py scorecard >>"$LOG" 2>&1 \
+       && send --pdf "$REPO/reports/scorecard/$TODAY.md" "trading-scorecard-$TODAY" "📈 Scorecard tuần $TODAY — tín hiệu vs giá thực tế + sổ paper."; then
+      echo "[$(ts)] OK → sent scorecard" >>"$LOG"
+    else
+      echo "[$(ts)] scorecard/gửi lỗi" >>"$LOG"
+    fi
+  fi
+fi

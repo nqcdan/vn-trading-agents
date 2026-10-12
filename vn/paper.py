@@ -304,6 +304,23 @@ def apply(acts: list[dict], asset_class: str = "vn_stock") -> dict:
     return {"book": book, "warnings": warnings}
 
 
+def apply_journal(day: str, journal_dir: str = os.path.join("reports", "journal")) -> dict:
+    """Áp actions của báo cáo daily ngày `day` vào sổ (không gọi LLM). Mỗi ngày chỉ áp 1 lần."""
+    book = _load()
+    if day in book.get("journal_applied", []):
+        return {"skipped": f"{day} đã áp trước đó", "acts": []}
+    path = os.path.join(journal_dir, f"{day}-daily.json")
+    if not os.path.exists(path):
+        raise PaperError(f"không có journal {path}")
+    with open(path, encoding="utf-8") as f:
+        acts = json.load(f).get("actions") or []
+    out = apply(acts)
+    book = _load()
+    book["journal_applied"] = book.get("journal_applied", []) + [day]
+    _save(book)
+    return {**out, "acts": acts}
+
+
 def _mark_positions(positions: dict, cash: float, as_of: str | None = None,
                     asset_class: str = "vn_stock") -> dict:
     marked = []

@@ -1,7 +1,7 @@
 ---
 title: Runbook vận hành vn-trading-agents
 scope: sử dụng hàng ngày — quét EOD, kế hoạch tháng, paper-trade
-updated: 2026-09-10
+updated: 2026-10-12
 ---
 
 # Runbook vận hành vn-trading-agents
@@ -156,6 +156,19 @@ Xem giá trị và chấm điểm định kỳ:
 
 Điểm số so 3 đường: agent (đã giao dịch) — giữ nguyên (không đụng) — VNINDEX. Agent thua "giữ nguyên" nghĩa là phí và giao dịch thừa đang ăn mòn lời.
 
+Tự động: slot EOD (launchd 15:30) chạy `paper journal` sau báo cáo — áp các hành động của báo cáo daily hôm đó vào sổ (không gọi LLM, mỗi ngày 1 lần). Chạy tay cho ngày cụ thể:
+
+.venv/bin/python run.py paper journal --date 2026-10-12
+
+### Scorecard tín hiệu
+
+Đo khuyến nghị trong các báo cáo daily so với giá thực tế sau đó: vào lệnh = giá mở cửa phiên kế tiếp, đo vượt trội so với trung bình đều cả rổ sau 5 / 10 phiên / đến nay, tách rule-based (BUY/HOLD/SELL) và LLM (actions). Kèm sổ paper và sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). Giá lấy từ OHLCV đã điều chỉnh cổ tức/chia tách, ~2 phút vì giới hạn 20 req/phút của vnstock.
+
+.venv/bin/python run.py scorecard
+.venv/bin/python run.py scorecard --since 2026-10-01
+
+Lưu `reports/scorecard/{ngày}.md`. Thứ 6 slot EOD tự chạy và gửi Telegram.
+
 ## 5. Khi gặp trục trặc
 
 Muốn dữ liệu TCBS real-time cho `watch` / `advise` / `tcbs` — đăng nhập lại: mở `claude`, gõ `/mcp`, chọn tcbs → Authenticate (đăng nhập TCBS + iOTP), rồi chạy lệnh ngay sau đó. Lưu ý: các lệnh này có thể in `nguồn: mcp` nhưng nếu trong kết quả có dòng "Server TCBS chưa kết nối" thì thực chất đang chạy rule-based — nhãn `mcp` chỉ nghĩa là đã thử, không đảm bảo TCBS thật sự trả dữ liệu.
@@ -177,4 +190,5 @@ Kiểm tra kết nối tới danh mục thật:
 - Cuối mỗi phiên: `daily --group VN30 --require-mcp` — 1 báo cáo gộp cảnh báo + quyết định mua/bán/giữ + xếp hạng cả rổ. Lưu `{ngày}-daily.md`, chạy lại ghi đè.
 - Mỗi tuần: `paper mark` (định giá lại sổ paper).
 - Mỗi tháng: `paper score` (chấm điểm agent vs giữ-nguyên vs VNINDEX).
+- Thứ 6 (tự động): `scorecard` gửi Telegram — tín hiệu có thắng rổ không.
 - Khi bơm/rút vốn thật: `paper cash` cho khớp sổ.
