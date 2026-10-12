@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
@@ -70,7 +70,9 @@ def get_indicators(symbol: str, as_of: str | None = None, lookback_days: int = 2
         start = (date.fromisoformat(end) - timedelta(days=lookback_days * 2)).isoformat()
         return indicators_from_ohlcv(get_ohlcv(symbol, start, end), symbol)
 
-    return cache.memoize("indicators", symbol.upper(), _compute, as_of=as_of)
+    # Cache theo ngày: lần chạy sáng ghi giá phiên trước → lần chạy EOD phải lấy key riêng, không thì dùng lại giá cũ.
+    key = symbol.upper() + ("@eod" if as_of is None and datetime.now().hour >= 15 else "")
+    return cache.memoize("indicators", key, _compute, as_of=as_of)
 
 
 def get_fundamentals(symbol: str, source: str = "VCI") -> dict:
