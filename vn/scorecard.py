@@ -298,20 +298,14 @@ def render_decisions(rows: list[dict]) -> list[str]:
     return L
 
 
-def render(res: dict) -> str:
-    if "error" in res:
-        return f"# Scorecard tín hiệu\n\nLỗi: {res['error']}\n"
-    L = [f"# Scorecard tín hiệu vn-trading-agents · {res['since']} → {res['until']}", ""]
-    if res["vnindex_ret"] is not None:
-        L.append(f"**Thị trường cùng kỳ:** VNINDEX {res['vnindex_ret']:+.2f}% · "
-                 f"rổ đều {res['basket_ret']:+.2f}%")
-        L.append("")
+def _render_signals(res: dict) -> list[str]:
+    L = []
     names = {5: "5 phiên", 10: "10 phiên", 0: f"đến {res['until']}"}
     for h in HORIZONS:
         block = res["stats"][h]
         if not block["rule"] and not block["llm"]:
             continue
-        L += [f"## Vượt trội so với rổ — {names[h]}", "",
+        L += [f"## Tín hiệu vượt trội so với rổ — {names[h]}", "",
               "| Tín hiệu | n | TB (pp) | Trung vị (pp) | Tỉ lệ thắng rổ |",
               "| :-- | --: | --: | --: | --: |"]
         for g in SIGNALS:
@@ -320,7 +314,6 @@ def render(res: dict) -> str:
         for g, v in sorted(block["llm"].items()):
             L.append(_row(f"LLM {g}", v))
         L.append("")
-    L += render_decisions(res.get("decisions") or [])
     L.append("Đọc bảng: BUY tốt khi TB > 0, SELL tốt khi TB < 0. Mỗi mã lặp tín hiệu nhiều ngày liền "
              "nên các quan sát không độc lập — n thật nhỏ hơn nhiều so với con số hiển thị.")
     L.append("")
@@ -334,6 +327,21 @@ def render(res: dict) -> str:
         if p["missing"]:
             L.append(f"- Thiếu giá (bỏ khỏi NAV): {', '.join(p['missing'])}")
         L.append("")
+    return L
+
+
+def render(res: dict, full: bool = False) -> str:
+    """Mặc định chỉ chấm mục 3 (bảng lệnh người dùng thực sự đặt theo). full=True thêm thống kê tín hiệu + sổ paper."""
+    if "error" in res:
+        return f"# Hiệu suất lệnh mục 3\n\nLỗi: {res['error']}\n"
+    L = [f"# Hiệu suất lệnh mục 3 · {res['since']} → {res['until']}", ""]
+    if res["vnindex_ret"] is not None:
+        L.append(f"**Thị trường cùng kỳ:** VNINDEX {res['vnindex_ret']:+.2f}% · "
+                 f"rổ đều {res['basket_ret']:+.2f}%")
+        L.append("")
+    L += render_decisions(res.get("decisions") or [])
+    if full:
+        L += _render_signals(res)
     h = res["health"]
     warn = []
     if h["fallback"]:

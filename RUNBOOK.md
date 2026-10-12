@@ -160,12 +160,14 @@ Tự động: slot EOD (launchd 15:30) chạy `paper journal` sau báo cáo — 
 
 .venv/bin/python run.py paper journal --date 2026-10-12
 
-### Scorecard tín hiệu
+### Hiệu suất lệnh mục 3 (chuẩn thống kê)
 
-Đo khuyến nghị trong các báo cáo daily so với giá thực tế sau đó. Phần "Mục 3" chấm từng lệnh MUA/BÁN của mục Quyết định & giải ngân: đặt LO đúng giá báo cáo ở phiên kế tiếp → khớp hay không, lãi/lỗ tới nay (đã trừ phí, đã quy đổi khi có chia cổ tức cổ phiếu), gộp theo báo cáo và theo mã. Phần tín hiệu: vào lệnh = giá mở cửa phiên kế tiếp, đo vượt trội so với trung bình đều cả rổ sau 5 / 10 phiên / đến nay, tách rule-based (BUY/HOLD/SELL) và LLM (actions). Kèm sổ paper và sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). Giá lấy từ OHLCV đã điều chỉnh cổ tức/chia tách, ~2 phút vì giới hạn 20 req/phút của vnstock.
+Thống kê hiệu suất luôn chấm theo **mục 3 "Quyết định & giải ngân"** — bảng duy nhất dùng để đặt lệnh thật. Mỗi lệnh MUA/BÁN của từng báo cáo: đặt LO đúng giá báo cáo ở phiên kế tiếp → khớp hay không, lãi/lỗ tới nay (đã trừ phí/thuế/trượt giá, quy đổi khi chia cổ tức cổ phiếu), gộp theo báo cáo và theo mã, so VNINDEX cùng kỳ. Kèm sức khoẻ pipeline (ngày fallback, ngân sách đứng yên). ~2 phút vì vnstock giới hạn 20 req/phút.
 
 .venv/bin/python run.py scorecard
 .venv/bin/python run.py scorecard --since 2026-10-01
+
+Thêm `--full` để xem phụ thống kê tín hiệu rule/LLM so với rổ + sổ paper (không dùng để đánh giá chính).
 
 Lưu `reports/scorecard/{ngày}.md`. Thứ 6 slot EOD tự chạy và gửi Telegram.
 
@@ -190,5 +192,5 @@ Kiểm tra kết nối tới danh mục thật:
 - Cuối mỗi phiên: `daily --group VN30 --require-mcp` — 1 báo cáo gộp cảnh báo + quyết định mua/bán/giữ + xếp hạng cả rổ. Lưu `{ngày}-daily.md`, chạy lại ghi đè.
 - Mỗi tuần: `paper mark` (định giá lại sổ paper).
 - Mỗi tháng: `paper score` (chấm điểm agent vs giữ-nguyên vs VNINDEX).
-- Thứ 6 (tự động): `scorecard` gửi Telegram — tín hiệu có thắng rổ không.
+- Thứ 6 (tự động): `scorecard` gửi Telegram — lệnh mục 3 lãi/lỗ ra sao.
 - Khi bơm/rút vốn thật: `paper cash` cho khớp sổ.

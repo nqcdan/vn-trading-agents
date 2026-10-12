@@ -24,6 +24,7 @@ VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 .venv/bin/python run.py paper init                   # sổ paper-trade forward từ portfolio thật
 .venv/bin/python run.py paper advise --group VN30    # agent trần auto-apply lệnh vào sổ + đo cost
 .venv/bin/python run.py paper score                  # scorecard 3 đường (agent/giữ nguyên/VNINDEX)
+.venv/bin/python run.py scorecard                    # hiệu suất lệnh mục 3 từng báo cáo (chuẩn thống kê)
 .venv/bin/python run.py serve --port 8787            # HTTP API đọc chỉ số hiện tại
 ```
 
@@ -78,3 +79,7 @@ Package độc lập nằm ở `vn/` (chạy ngay, không phụ thuộc thư m�
 - **`paper` = forward-only, KHÔNG backtest LLM lịch sử** — chạy lại quá khứ là hindsight (LLM "biết" tương lai) + không có TCBS/tin lịch sử = gian lận. Chỉ tiến về phía trước. 2–3 tháng KHÔNG đủ kết luận alpha; chỉ đo thất bại thô + chi phí + độ ổn định.
 
 Note: `AGENTS.md` ở root là bootstrap tự sinh của vnstock (gitignored), không liên quan kiến trúc dự án này.
+
+## Thống kê hiệu suất — chuẩn
+
+Người dùng chỉ đặt lệnh theo **mục 3 "Quyết định & giải ngân"** của báo cáo daily. Mọi yêu cầu thống kê/đánh giá hiệu suất → dùng `run.py scorecard` (`vn/scorecard.py::decisions`): từng lệnh MUA/BÁN, LO khớp ở phiên kế tiếp hay không, lãi/lỗ sau phí, gộp theo báo cáo + theo mã, so VNINDEX. Thống kê tín hiệu rule/LLM vs rổ và sổ paper chỉ là phụ (`--full`), không dùng làm kết luận chính.

@@ -394,7 +394,7 @@ def cmd_paper(a):
 
 
 def cmd_scorecard(a):
-    md = scorecard.render(scorecard.build(a.since, a.throttle))
+    md = scorecard.render(scorecard.build(a.since, a.throttle), full=a.full)
     print(md)
     print(f"→ scorecard: {scorecard.save(md)}")
 
@@ -519,9 +519,10 @@ def main():
         pag.add_argument("--no-mcp", action="store_true", help="tắt TCBS MCP, dùng text-mode")
     ppa.set_defaults(func=cmd_paper)
 
-    psc2 = sub.add_parser("scorecard", help="đo hiệu suất tín hiệu daily vs giá thực tế + sổ paper + sức khoẻ pipeline")
+    psc2 = sub.add_parser("scorecard", help="hiệu suất lệnh mục 3 từng báo cáo daily (LO khớp, lãi/lỗ sau phí) + sức khoẻ pipeline")
     psc2.add_argument("--since", default=None, help="YYYY-MM-DD")
     psc2.add_argument("--throttle", type=float, default=3.3)
+    psc2.add_argument("--full", action="store_true", help="thêm thống kê tín hiệu rule/LLM + sổ paper")
     psc2.set_defaults(func=cmd_scorecard)
 
     pv = sub.add_parser("serve", help="chạy HTTP API đọc chỉ số hiện tại")

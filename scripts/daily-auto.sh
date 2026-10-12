@@ -69,7 +69,7 @@ if [ "$SLOT" = "eod" ]; then
   .venv/bin/python run.py paper journal >>"$LOG" 2>&1 || echo "[$(ts)] paper journal lỗi" >>"$LOG"
   if [ "$DOW" -eq 5 ]; then
     if .venv/bin/python run.py scorecard >>"$LOG" 2>&1 \
-       && send --pdf "$REPO/reports/scorecard/$TODAY.md" "trading-scorecard-$TODAY" "📈 Scorecard tuần $TODAY — tín hiệu vs giá thực tế + sổ paper."; then
+       && send --pdf "$REPO/reports/scorecard/$TODAY.md" "trading-scorecard-$TODAY" "📈 Hiệu suất lệnh mục 3 — tuần $TODAY."; then
       echo "[$(ts)] OK → sent scorecard" >>"$LOG"
     else
       echo "[$(ts)] scorecard/gửi lỗi" >>"$LOG"
